@@ -256,6 +256,43 @@ function RpbComm() {
 
 }
 
+/** Represents a deck of cards
+ *  @constructor
+ */
+function CardDeck(shuffled){
+    this.cards = [];
+    var suits = this.suits = ["hearts", "diamonds", "spades", "clubs"];
+    var suitSymbols = this.suitSymbols = ["♥", "♦", "♠", "♣"];
+    var ranks = this.ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+    /** @constructor */
+    var Card = this.Card = function(rank, suit) {
+        this.rank = rank;
+        this.rankName = ranks[rank - 1];
+        this.suit = suit;
+        this.suitName = suits[suit];
+        this.suitSymbol = suitSymbols[suit];
+
+    };
+
+    this.shuffle = function() {
+        // fisher yates
+        for(var i = this.cards.length - 1; i > 0; i--){
+            var iSwap = Math.floor(Math.random() * (i + 1));
+            var tmp = this.cards[iSwap]
+            this.cards[iSwap] = this.cards[i];
+            this.cards[i] = tmp;
+        }
+    };
+
+    for(var rank = 1; rank <= 13; rank++){
+        for(var suit = 0; suit < 4; suit++){
+            this.cards.push(new Card(rank, suit));
+        }
+    }
+
+    if(shuffled) this.shuffle();
+}
 $(document).ready(function () {
 
     var rpbGame = {
@@ -264,8 +301,6 @@ $(document).ready(function () {
         messages: {
             startGame: "startGame",
         },
-
-
 
         ui: {
             hostDisplay: $("#host"),
