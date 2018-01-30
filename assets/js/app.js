@@ -256,6 +256,47 @@ function RpbComm() {
 
 }
 
+
+/** Represents game logic
+ * @constructor
+ */
+function Game() {
+    this.states = {
+        none: "None",
+        placingBets: "placingBets",
+    }
+    this.state = 
+    this.deck = new CardDeck(true);
+    this.minimumBet = 1;
+    /** Contains player specific data (hand, bet), with user ids as keys */
+    this.playerInfo = {
+        // .hand: Card[]
+        // .bet: number
+        // .betPlaced: bool - to be set by placeBet function
+    };
+    /** Must be set to the RpbComm object. Used to query player info.
+     * @type {RpbComm}
+     */
+    this.comm = null;
+
+    /** Prepares a hand be re-initializing player hand data. Bets may be made. No cards will be dealt until
+     * dealHand is called.
+     */
+    this.beginHand = new function() {
+        this.playerInfo = {};
+        for(var playerKey in this.comm.cached.players) {
+            this.playerInfo[playerKey] = {
+                bet: this.minimumBet,
+                hand: [],
+                betPlaced: false,
+            }
+        }
+
+        this.state = this.states.placingBets;
+    }
+    
+    
+}
 /** Represents a deck of cards
  *  @constructor
  */
