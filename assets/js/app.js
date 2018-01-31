@@ -302,15 +302,18 @@ function RpbGameLogic() {
      */
     this.comm = null;
 
+    this.playerQueue = [];
 
 }
 RpbGameLogic.states = {
     none: "None",
     placingBets: "placingBets",
+    awaitingPlayers: "awaitingPlayers",
 };
 RpbGameLogic.messages = {
     placeBet: "placeBet",
     dealCard: "dealCard",
+    playerUp: "playerUp",
 }
 RpbGameLogic.prototype.state = RpbGameLogic.states.none; // default value
 RpbGameLogic.prototype.initialized = false;
@@ -354,8 +357,8 @@ RpbGameLogic.prototype.player_placeBet = function (amt) {
 /** Gets an object containing only the card's suit and rank. */
 RpbGameLogic.prototype.getSimpleCard = function getSimpleCard() {
     var card = this.deck.getCard();
-    return {rank: card.rank, suit: card.suit};
-    
+    return { rank: card.rank, suit: card.suit };
+
 }
 RpbGameLogic.prototype.host_initialDeal = function host_initialDeal() {
     // I'm dealing out of order and I don't even care
@@ -372,6 +375,10 @@ RpbGameLogic.prototype.host_initialDeal = function host_initialDeal() {
             cards: cards,
         });
     }, this)
+
+    this.state = RpbGameLogic.states.awaitingPlayers;
+    this.playerQueue = Object.getOwnPropertyNames(this.playerInfo);
+    this.comm.dispatchAction(RpbGameLogic.messages.playerUp, {user: this.playerQueue[0]});
 }
 
 RpbGameLogic.prototype.host_registerBet = function (userKey, amt) {
@@ -452,8 +459,8 @@ function CardDeck(shuffled, numDecks) {
     /** Removes one card from the deck and returns it. 
      * @returns Card
     */
-    this.getCard = function() {
-        if(this.cards.length == 0) {
+    this.getCard = function () {
+        if (this.cards.length == 0) {
             this.shuffle();
         }
 
@@ -464,7 +471,7 @@ function CardDeck(shuffled, numDecks) {
     }
 
     /** Re-adds any dealt cards back into the deck for the next shuffle */
-    this.returnCards = function() {
+    this.returnCards = function () {
         // Take cards 'on the table' and put them in the return pile
         Array.prototype.push.apply(this.returnedCards, this.cardsOut);
         this.cardsOut.length = 0;
@@ -479,6 +486,24 @@ function CardDeck(shuffled, numDecks) {
     }
     if (shuffled) this.shuffle();
 }
+
+// Helper methods
+CardDeck.suitSymbols = ["♥", "♦", "♠", "♣"];
+CardDeck.rankNames = [undefined, 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+CardDeck.suitNames = ["hearts", "diamonds", "spades", "clubs"];
+CardDeck.getSuitName = function getSuitName(suit){
+    return CardDeck.suitNames[suit] || "[suit: " + (suit || "") + "]";
+};
+CardDeck.getSuitSymbol = function getSuitSymbol(suit){
+    return CardDeck.suitSymbols[suit] || "[suit: " + (suit || "") + "]";
+};
+CardDeck.getRankName = function getRankName(rank){
+    return CardDeck.rankNames[rank] || "[rank: " + (rank || "") + "]";
+};
+
+
+
+
 $(document).ready(function () {
 
     var rpbGame = {
@@ -489,13 +514,14 @@ $(document).ready(function () {
         },
 
         ui: {
-            hostDisplay: $("#host"),
+            hostDisplay: $("#host-name"),
             waitingDisplay: $("#waiting"),
             playingDisplay: $("#playing"),
             startGame: $("#start-game"),
             playerContainer: $("#player-container"),
             placeBet: $("#place-bet"),
             myBet: $("#my-bet"),
+            status: $("#status"),
         },
 
         init: function () {
@@ -534,19 +560,21 @@ $(document).ready(function () {
                 this.comm.dispatchAction(this.messages.startGame);
             },
         },
+
         actionHandlers: {
             startGame: function (args) {
+                var dealerDiv = $("<div>").attr("id", "dealer");
+                dealerDiv.append($("<p>").text("dealer"));
+                dealerDiv.append($("<div>").addClass("cardContainer"))
+                this.ui.playerContainer.append(dealerDiv);
+
                 forEachIn(this.comm.cached.players, function (key, value) {
                     var player = value;
 
                     var div = $("<div>").attr("id", key);
                     div.append($("<p>").text(player.name));
-                    // Host always comes first
-                    if (key == this.comm.cached.host) {
-                        this.ui.playerContainer.prepend(div);
-                    } else {
-                        this.ui.playerContainer.append(div);
-                    }
+                    div.append($("<div>").addClass("cardContainer"))
+                this.ui.playerContainer.append(div);
                 }, this);
 
                 var thisPlayer = this.getThisPlayer();
@@ -558,9 +586,27 @@ $(document).ready(function () {
                     this.ui.placeBet.attr("min", minBasedOnBalance);
                     this.ui.placeBet.attr("max", maxBasedOnBalance);
                 }
-                if(this.comm.isHosting){
+                if (this.comm.isHosting) {
                     this.game.host_beginHand();
                 }
+            },
+
+            dealCard: function onDealCard(args) {
+                var userDiv;
+                if(args.user == "dealer") {
+                    userDiv = $("#dealer");
+                } else {
+                    userDiv = $("#" + args.user);
+                }
+
+                (args.cards || []).forEach(function(card) {
+                    var cardContainer = userDiv.find(".cardContainer");
+                    cardContainer.append($("<span>").text(CardDeck.getRankName(card.rank) + CardDeck.getSuitSymbol(card.suit)));
+                }, this);
+            },
+            playerUp: function onPlayerUp(args) {
+                var player = this.comm.cached.players[args.user].name;
+                this.ui.status.text(player + " is up!");
             },
         },
         commEventHandlers: {
@@ -575,7 +621,7 @@ $(document).ready(function () {
                 this.updateWaitingDisplay();
             },
         },
-        on_placeBet_click: function(e){
+        on_placeBet_click: function (e) {
             //@ts-ignore
             var bet = parseInt(this.ui.myBet.val()) || 1;
             this.game.player_placeBet(bet);
