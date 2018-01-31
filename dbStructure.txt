@@ -1,0 +1,16 @@
+(root)
+    -rpb
+        -host - host user ID. Host always resides in .players
+        -performAction - (action)s - sent from host to other players
+        -requestAction - (action)s - sent from players to host 
+        -players - (player info)s - playing current round
+        -waitingPlayers - (player info)s - waiting to join next round
+        
+
+(action)
+    - action - (string) - identifies action
+    - [args] - (object) - additional action-specific json data
+
+(player info) - node name is player's ID!
+    - name - (string) - name
+    - balance - (number) - number

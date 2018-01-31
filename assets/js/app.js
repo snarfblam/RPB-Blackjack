@@ -66,6 +66,16 @@ function signOut() {
     firebase.auth().signOut();
 }
 
+/** Iterates over an objects own properties. (Similar to a for...in loop, but skips over inherited (prototype) properties.) */
+function forEachIn(obj, callback, _this) {
+    for (var key in obj) {
+        if (obj.hasOwnProperty(key)) {
+            callback.call(_this || this, key, obj[key]); // inherit this function's context if _this is not specified
+        }
+    }
+}
+
+
 /** Managese communication with firebase
  *  @constructor */
 function RpbComm() {
@@ -74,11 +84,11 @@ function RpbComm() {
     this.myName = "stefan";
 
     /** An object containing handlers for requests. Property names correspond to message strings. */
-    this.requestHandlers = {};
+    this.requestHandlers = [];
     /** An object containing handlers for actions. Property names correspond to message strings. */
-    this.actionHandlers = {};
+    this.actionHandlers = [];
     /** An object containing handlers for events. */
-    this.eventHandlers = {};
+    this.eventHandlers = [];
     /** The object on whose context request and action handlers will be invoke */
     this.handlerContext = null;
 
@@ -90,14 +100,16 @@ function RpbComm() {
         waitingPlayers: database.ref("rpb/requestJoin"),
         requests: database.ref("rpb/requestAction"),
         actions: database.ref("rpb/performAction"),
+        bets: database.ref("rpb/bets"),
     };
 
-    this.cached=  {
+    this.cached = {
         host: null,
         players: {},
         waitingPlayers: {},
         requests: [],
         actions: [],
+        bets: [],
     };
     this.events = {
         playerListChanged: "playerListChanged",
@@ -105,7 +117,7 @@ function RpbComm() {
         waitingListChanged: "waitingListChanged",
     };
 
-    this.connect = function() {
+    this.connect = function () {
         var self = this;
 
         // First and foremost, we're checking who the host is. 
@@ -113,24 +125,25 @@ function RpbComm() {
         // Else, we're joining as a spectator, at which point we can ask to join the next round
 
         this.nodes.host.once("value")
-        .then(function (snapshot) {
-            if (snapshot.val()) {
-                self.joinExistingGame();
-            } else {
-                self.createNewGame();
-            }
+            .then(function (snapshot) {
+                if (snapshot.val()) {
+                    self.joinExistingGame();
+                } else {
+                    self.createNewGame();
+                }
 
-            self.nodes.host.on("value", self.ondb_host_value.bind(self));
-            self.nodes.players.on("value", self.ondb_players_value.bind(self));
-            self.nodes.requests.on("value", self.ondb_requests_value.bind(self));
-            self.nodes.waitingPlayers.on("value", self.ondb_waitingPlayers_value.bind(self));
-            self.nodes.actions.on("child_added", self.ondb_actions_childAdded.bind(self));
-        }).catch(function (error) {
-            alert(JSON.stringify(error));
-        });
+                self.nodes.host.on("value", self.ondb_host_value.bind(self));
+                self.nodes.players.on("value", self.ondb_players_value.bind(self));
+                self.nodes.requests.on("value", self.ondb_requests_value.bind(self));
+                self.nodes.waitingPlayers.on("value", self.ondb_waitingPlayers_value.bind(self));
+                self.nodes.actions.on("child_added", self.ondb_actions_childAdded.bind(self));
+                self.nodes.bets.on("value", self.ondb_bets_value.bind(self));
+            }).catch(function (error) {
+                alert(JSON.stringify(error));
+            });
     }
 
-    
+
     this.createNewGame = function () {
         this.isHosting = true;
 
@@ -171,11 +184,13 @@ function RpbComm() {
         }
     };
 
+    /** Sends a message to the host to request a game action to occur */
     this.dispatchRequest = function (msgString, msgArgObject) {
         var msg = { action: msgString };
         if (msgArgObject) msg.args = msgArgObject;
         this.nodes.requests.push(msg);
     };
+    /** Sends a message to clients informing them that a game action has occurred */
     this.dispatchAction = function (msgString, msgArgObjcet) {
         var msg = { action: msgString };
         if (msgArgObjcet) msg.args = msgArgObjcet;
@@ -183,12 +198,16 @@ function RpbComm() {
     };
 
     this.processRequest = function (msgString, msgArgObject) {
-        var handler = this.requestHandlers[msgString];
-        if (handler) handler.call(this.handlerContext, msgArgObject);
+        this.requestHandlers.forEach(function (handlerObject) {
+            var handlerFunc = handlerObject[msgString];
+            if (handlerFunc) handlerFunc.call(handlerObject.handlerContext || this, msgArgObject);
+        }, this);
     };
-    this.raiseEvent = function(event, eventArgs) {
-        var handler = this.eventHandlers[event];
-        if(handler) handler.call(this.handlerContext, eventArgs);
+    this.raiseEvent = function (event, eventArgs) {
+        this.eventHandlers.forEach(function (handlerObject) {
+            var handler = handlerObject[event];
+            if (handler) handler.call(handlerObject.handlerContext, eventArgs);
+        }, this);
     };
     this.processAllRequests = function () {
         while (this.cached.requests.length > 0) {
@@ -198,9 +217,10 @@ function RpbComm() {
     };
 
     this.processAction = function (msgString, msgArgObject) {
-        var handler = this.actionHandlers[msgString];
-        if (handler) handler.call(this.handlerContext, msgArgObject);
-
+        this.actionHandlers.forEach(function (handlerObject) {
+            var handlerFunc = handlerObject[msgString];
+            if (handlerFunc) handlerFunc.call(handlerObject.handlerContext || this, msgArgObject);
+        }, this);
     };
 
     this.ondb_host_value = function (snapshot) {
@@ -235,9 +255,9 @@ function RpbComm() {
 
         function processRequests(reqObject) {
             var collection = [];
-            for (var key in reqObject) {
-                collection.push(reqObject[key]);
-            }
+            forEachIn(reqObject, function (key, value) {
+                collection.push(value);
+            });
             this.cached.requests = collection;
             this.processAllRequests();
         }
@@ -253,6 +273,10 @@ function RpbComm() {
         var actionObj = snapshot.val();
         this.processAction(actionObj.action, actionObj.args);
     };
+    this.ondb_bets_value = function (snapshot) {
+        console.log("BET + ", snapshot.val());
+        this.cached.bets = snapshot.val();
+    };
 
 }
 
@@ -260,54 +284,148 @@ function RpbComm() {
 /** Represents game logic
  * @constructor
  */
-function Game() {
-    this.states = {
-        none: "None",
-        placingBets: "placingBets",
-    }
-    this.state = 
-    this.deck = new CardDeck(true);
+function RpbGameLogic() {
+
+    //this.state = this.states.none;
+    this.deck = new CardDeck(true, 1);
     this.minimumBet = 1;
+    this.maximumBet = 20;
+    this.currentBet = null;
     /** Contains player specific data (hand, bet), with user ids as keys */
     this.playerInfo = {
         // .hand: Card[]
         // .bet: number
         // .betPlaced: bool - to be set by placeBet function
     };
-    /** Must be set to the RpbComm object. Used to query player info.
+    /** Must be set to the RpbComm object. Used to get and set player info.
      * @type {RpbComm}
      */
     this.comm = null;
 
-    /** Prepares a hand be re-initializing player hand data. Bets may be made. No cards will be dealt until
-     * dealHand is called.
-     */
-    this.beginHand = new function() {
-        this.playerInfo = {};
-        for(var playerKey in this.comm.cached.players) {
-            this.playerInfo[playerKey] = {
-                bet: this.minimumBet,
-                hand: [],
-                betPlaced: false,
-            }
-        }
 
-        this.state = this.states.placingBets;
-    }
-    
+}
+RpbGameLogic.states = {
+    none: "None",
+    placingBets: "placingBets",
+};
+RpbGameLogic.messages = {
+    placeBet: "placeBet",
+    dealCard: "dealCard",
+}
+RpbGameLogic.prototype.state = RpbGameLogic.states.none; // default value
+RpbGameLogic.prototype.initialized = false;
+RpbGameLogic.prototype.init = function init() {
+    // Lazy initialization
+    if (!this.comm) throw Error("RpbGameLogic.comm must be set prior to using the object.");
+
+    this.actionHandlers.handlerContext = this;
+    this.requestHandlers.handlerContext = this;
+    this.comm.actionHandlers.push(this.actionHandlers);
+    this.comm.requestHandlers.push(this.requestHandlers);
+};
+/** Prepares a hand be re-initializing player hand data. Bets may be made. No cards will be dealt until
+ * dealHand is called.
+ */
+RpbGameLogic.prototype.host_beginHand = function () {
+    if (!this.initialized) this.init();
+    this.playerInfo = {};
+
+    forEachIn(this.comm.cached.players, function (key, value) {
+        this.playerInfo[key] = {
+            bet: this.minimumBet,
+            hand: [], // first card is hidden
+            betPlaced: false,
+        }
+    }, this);
+
+    this.state = RpbGameLogic.states.placingBets;
+}
+RpbGameLogic.prototype.player_beginHand = new function () {
+
+};
+
+RpbGameLogic.prototype.player_placeBet = function (amt) {
+    this.currentBet = amt;
+    this.comm.dispatchRequest(RpbGameLogic.messages.placeBet, {
+        user: this.comm.myUserKey,
+        bet: amt
+    });
+};
+/** Gets an object containing only the card's suit and rank. */
+RpbGameLogic.prototype.getSimpleCard = function getSimpleCard() {
+    var card = this.deck.getCard();
+    return {rank: card.rank, suit: card.suit};
     
 }
+RpbGameLogic.prototype.host_initialDeal = function host_initialDeal() {
+    // I'm dealing out of order and I don't even care
+    var dealerCards = [this.getSimpleCard(), this.getSimpleCard()];
+    this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
+        user: "dealer",
+        cards: dealerCards,
+    });
+
+    forEachIn(this.playerInfo, function (key, value) {
+        var cards = [this.getSimpleCard(), this.getSimpleCard()];
+        this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
+            user: key,
+            cards: cards,
+        });
+    }, this)
+}
+
+RpbGameLogic.prototype.host_registerBet = function (userKey, amt) {
+    var playerInfo = this.playerInfo[userKey];
+    playerInfo.bet = amt;
+    playerInfo.betPlaced = true;
+
+    // Notify clients
+    this.comm.dispatchAction(RpbGameLogic.messages.placeBet, { user: userKey, bet: amt });
+
+    // we're only done betting if all players have placed bets
+    var doneBetting = true;
+    forEachIn(this.playerInfo, function (key, value) {
+        if (!value.betPlaced) doneBetting = false;
+    }, this);
+
+    if (doneBetting) {
+        this.host_initialDeal();
+    }
+};
+RpbGameLogic.prototype.requestHandlers = {
+    placeBet: function (args) {
+        if (this.comm.isHosting) {
+            this.host_registerBet(args.user, args.bet);
+        }
+    }
+};
+RpbGameLogic.prototype.actionHandlers = {
+    placeBet: function (args) {
+
+    },
+};
+
 /** Represents a deck of cards
  *  @constructor
  */
-function CardDeck(shuffled){
+function CardDeck(shuffled, numDecks) {
+    numDecks = numDecks || 1;
+
+    /** @type {Card[]} */
     this.cards = [];
+    /** @type {Card[]} 
+     * Cards on the table    */
+    this.cardsOut = [];
+    /** @type {Card[]} 
+     * Cards returned from the table */
+    this.returnedCards = [];
+
     var suits = this.suits = ["hearts", "diamonds", "spades", "clubs"];
     var suitSymbols = this.suitSymbols = ["♥", "♦", "♠", "♣"];
     var ranks = this.ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
     /** @constructor */
-    var Card = this.Card = function(rank, suit) {
+    var Card = this.Card = function (rank, suit) {
         this.rank = rank;
         this.rankName = ranks[rank - 1];
         this.suit = suit;
@@ -316,9 +434,14 @@ function CardDeck(shuffled){
 
     };
 
-    this.shuffle = function() {
+    /** Shuffles cards */
+    this.shuffle = function () {
+        // re-insert returned cards
+        Array.prototype.push.apply(this.cards, this.returnedCards);
+        this.returnedCards.length = 0;
+
         // fisher yates
-        for(var i = this.cards.length - 1; i > 0; i--){
+        for (var i = this.cards.length - 1; i > 0; i--) {
             var iSwap = Math.floor(Math.random() * (i + 1));
             var tmp = this.cards[iSwap]
             this.cards[iSwap] = this.cards[i];
@@ -326,19 +449,41 @@ function CardDeck(shuffled){
         }
     };
 
-    for(var rank = 1; rank <= 13; rank++){
-        for(var suit = 0; suit < 4; suit++){
-            this.cards.push(new Card(rank, suit));
+    /** Removes one card from the deck and returns it. 
+     * @returns Card
+    */
+    this.getCard = function() {
+        if(this.cards.length == 0) {
+            this.shuffle();
         }
+
+        var result = this.cards.pop();
+        // Place card 'on table'
+        this.cardsOut.push(result);
+        return result;
     }
 
-    if(shuffled) this.shuffle();
+    /** Re-adds any dealt cards back into the deck for the next shuffle */
+    this.returnCards = function() {
+        // Take cards 'on the table' and put them in the return pile
+        Array.prototype.push.apply(this.returnedCards, this.cardsOut);
+        this.cardsOut.length = 0;
+    }
+
+    for (var iDeck = 0; iDeck < numDecks; iDeck++) {
+        for (var rank = 1; rank <= 13; rank++) {
+            for (var suit = 0; suit < 4; suit++) {
+                this.cards.push(new Card(rank, suit));
+            }
+        }
+    }
+    if (shuffled) this.shuffle();
 }
 $(document).ready(function () {
 
     var rpbGame = {
         comm: new RpbComm(),
-
+        game: new RpbGameLogic(),
         messages: {
             startGame: "startGame",
         },
@@ -349,6 +494,8 @@ $(document).ready(function () {
             playingDisplay: $("#playing"),
             startGame: $("#start-game"),
             playerContainer: $("#player-container"),
+            placeBet: $("#place-bet"),
+            myBet: $("#my-bet"),
         },
 
         init: function () {
@@ -357,15 +504,27 @@ $(document).ready(function () {
                 // Todo: notify server (especially if host)
             });
 
-            this.comm.requestHandlers = this.requestHandlers;
-            this.comm.actionHandlers = this.actionHandlers;
-            this.comm.eventHandlers = this.commEventHandlers;
-            this.comm.handlerContext = this;
+            this.requestHandlers.handlerContext = this;
+            this.actionHandlers.handlerContext = this;
+            this.commEventHandlers.handlerContext = this;
+            this.comm.requestHandlers.push(this.requestHandlers);
+            this.comm.actionHandlers.push(this.actionHandlers);
+            this.comm.eventHandlers.push(this.commEventHandlers);
+
+            this.game.comm = this.comm;
 
 
             self.comm.connect();
 
             this.ui.startGame.on("click", this.on_startGame_click.bind(this));
+            this.ui.placeBet.on("click", this.on_placeBet_click.bind(this));
+        },
+
+        getThisPlayer: function () {
+            return (this.comm.cached.players || {})[this.comm.myUserKey];
+        },
+        getHostPlayer: function () {
+            return (this.comm.cached.players || {})[this.comm.cached.host];
         },
 
 
@@ -377,47 +536,66 @@ $(document).ready(function () {
         },
         actionHandlers: {
             startGame: function (args) {
-                var players = this.comm.cached.players;
-                for (var playerID in players) {
-                    var player = players[playerID];
-    
-                    var div = $("<div>").attr("id", playerID);
+                forEachIn(this.comm.cached.players, function (key, value) {
+                    var player = value;
+
+                    var div = $("<div>").attr("id", key);
                     div.append($("<p>").text(player.name));
                     // Host always comes first
-                    if (playerID == this.comm.cached.host) {
+                    if (key == this.comm.cached.host) {
                         this.ui.playerContainer.prepend(div);
                     } else {
                         this.ui.playerContainer.append(div);
                     }
+                }, this);
+
+                var thisPlayer = this.getThisPlayer();
+                var host = this.getHostPlayer();
+                if (thisPlayer) {
+                    var minBasedOnBalance = Math.max(thisPlayer.balance, 1); // if you have negative balance, can still bet 1
+                    var maxBasedOnHost = Math.min((host || {}).balance || 1, 1); // can bet up to host's balance, or at least 1 if host is broke
+                    var maxBasedOnBalance = Math.min(maxBasedOnHost, thisPlayer.balance); // can't bet more than you have
+                    this.ui.placeBet.attr("min", minBasedOnBalance);
+                    this.ui.placeBet.attr("max", maxBasedOnBalance);
+                }
+                if(this.comm.isHosting){
+                    this.game.host_beginHand();
                 }
             },
         },
         commEventHandlers: {
-            hostSet: function() {
+            hostSet: function () {
                 this.updateHostDisplay();
             },
-            playerListChanged: function() {
+            playerListChanged: function () {
                 this.updateHostDisplay();
                 this.updatePlayingDisplay();
             },
-            waitingListChanged: function() {
+            waitingListChanged: function () {
                 this.updateWaitingDisplay();
             },
+        },
+        on_placeBet_click: function(e){
+            //@ts-ignore
+            var bet = parseInt(this.ui.myBet.val()) || 1;
+            this.game.player_placeBet(bet);
         },
         on_startGame_click: function (e) {
             var self = this;
             var promises = [];
-            // move users from waiting list to playing
-            var waitingList = this.comm.cached.waitingPlayers;
 
+            // move users from waiting list to playing
+            var waitList = this.comm.cached.waitingPlayers;
             var waitingPromise = this.comm.nodes.waitingPlayers.set({});
             promises.push(waitingPromise);
 
-            for (var playerKey in waitingList) {
-                var player = waitingList[playerKey];
-                var newPlayerPromise = this.comm.nodes.players.child(playerKey).set(player);
-                promises.push(newPlayerPromise);
-            }
+            forEachIn(waitList, function (key, value) {
+                var invalid = (!key || !value);
+                if (!invalid) { // if your name is "", you don't get to play. ¯\_(ツ)_/¯
+                    var newPlayerPromise = this.comm.nodes.players.child(key).set(value);
+                    promises.push(newPlayerPromise);
+                }
+            }, this);
 
             // Send the 'begin game' message when all users have been moved around.
             Promise.all(promises)
@@ -426,7 +604,7 @@ $(document).ready(function () {
                 });
         },
 
-        
+
 
         updateHostDisplay: function () {
             var hostInfo = this.comm.cached.players[this.comm.cached.host];
@@ -442,10 +620,10 @@ $(document).ready(function () {
         },
         updateUserList: function (jqElement, object) {
             var displayString = "";
-            for (var userKey in object) {
+            forEachIn(object, function (key, value) {
                 if (displayString) displayString += ", ";
-                displayString += object[userKey].name;
-            }
+                displayString += value.name;
+            });
             jqElement.text(displayString);
         },
     };
