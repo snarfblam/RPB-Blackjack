@@ -116,6 +116,9 @@ function RpbComm() {
         hostSet: "hostSet",
         waitingListChanged: "waitingListChanged",
     };
+    this.getThisPlayer = function getThisPlayer() {
+        return this.cached.players[this.myUserKey];
+    };
 
     this.connect = function () {
         var self = this;
@@ -302,6 +305,7 @@ function RpbGameLogic() {
      */
     this.comm = null;
 
+    /** Array of UserIDs */
     this.playerQueue = [];
 
 }
@@ -314,7 +318,15 @@ RpbGameLogic.messages = {
     placeBet: "placeBet",
     dealCard: "dealCard",
     playerUp: "playerUp",
-}
+    hit: "hit",
+    stand: "stand",
+};
+RpbGameLogic.prototype.player_getAllowedBet = function player_getMinimumBet() {
+    return {
+        min: this.minimumBet,
+        max: Math.min(this.maximumBet, this.comm.getThisPlayer().balance),
+    };
+};
 RpbGameLogic.prototype.state = RpbGameLogic.states.none; // default value
 RpbGameLogic.prototype.initialized = false;
 RpbGameLogic.prototype.init = function init() {
@@ -354,6 +366,14 @@ RpbGameLogic.prototype.player_placeBet = function (amt) {
         bet: amt
     });
 };
+RpbGameLogic.prototype.player_hit = function () {
+    // validation occurs at host
+    this.comm.dispatchRequest(RpbGameLogic.messages.hit, { user: this.comm.myUserKey });
+};
+RpbGameLogic.prototype.player_stand = function () {
+    // validation occurs at host
+    this.comm.dispatchRequest(RpbGameLogic.messages.stand, { user: this.comm.myUserKey });
+};
 /** Gets an object containing only the card's suit and rank. */
 RpbGameLogic.prototype.getSimpleCard = function getSimpleCard() {
     var card = this.deck.getCard();
@@ -378,7 +398,7 @@ RpbGameLogic.prototype.host_initialDeal = function host_initialDeal() {
 
     this.state = RpbGameLogic.states.awaitingPlayers;
     this.playerQueue = Object.getOwnPropertyNames(this.playerInfo);
-    this.comm.dispatchAction(RpbGameLogic.messages.playerUp, {user: this.playerQueue[0]});
+    this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
 }
 
 RpbGameLogic.prototype.host_registerBet = function (userKey, amt) {
@@ -403,6 +423,37 @@ RpbGameLogic.prototype.requestHandlers = {
     placeBet: function (args) {
         if (this.comm.isHosting) {
             this.host_registerBet(args.user, args.bet);
+        }
+    },
+    hit: function (args) {
+        if (this.comm.isHosting) {
+            var user = args.user;
+            if (this.playerQueue[0] == user) {
+                var info = this.playerInfo[user];
+                if (info) {
+                    var card = this.deck.getCard();
+                    info.hand.push(card);
+                    this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
+                        user: args.user,
+                        cards: [this.getSimpleCard(card)],
+                    }); 
+                }
+            }
+        }
+    },
+    stand: function (args) {
+        if (this.comm.isHosting) {
+            var user = args.user;
+            if (this.playerQueue[0] == user) {
+                var info = this.playerInfo[user];
+                if (info) {
+                    this.comm.dispatchAction(RpbGameLogic.messages.stand, args);
+                    this.playerQueue.shift();
+
+                    // left off here
+                    
+                }
+            }
         }
     }
 };
@@ -491,13 +542,13 @@ function CardDeck(shuffled, numDecks) {
 CardDeck.suitSymbols = ["♥", "♦", "♠", "♣"];
 CardDeck.rankNames = [undefined, 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 CardDeck.suitNames = ["hearts", "diamonds", "spades", "clubs"];
-CardDeck.getSuitName = function getSuitName(suit){
+CardDeck.getSuitName = function getSuitName(suit) {
     return CardDeck.suitNames[suit] || "[suit: " + (suit || "") + "]";
 };
-CardDeck.getSuitSymbol = function getSuitSymbol(suit){
+CardDeck.getSuitSymbol = function getSuitSymbol(suit) {
     return CardDeck.suitSymbols[suit] || "[suit: " + (suit || "") + "]";
 };
-CardDeck.getRankName = function getRankName(rank){
+CardDeck.getRankName = function getRankName(rank) {
     return CardDeck.rankNames[rank] || "[rank: " + (rank || "") + "]";
 };
 
@@ -522,6 +573,8 @@ $(document).ready(function () {
             placeBet: $("#place-bet"),
             myBet: $("#my-bet"),
             status: $("#status"),
+            playerHit: $("#player-hit"),
+            playerStand: $("#player-stand"),
         },
 
         init: function () {
@@ -544,6 +597,8 @@ $(document).ready(function () {
 
             this.ui.startGame.on("click", this.on_startGame_click.bind(this));
             this.ui.placeBet.on("click", this.on_placeBet_click.bind(this));
+            this.ui.playerHit.on("click", this.on_playerHit_click.bind(this));
+            this.ui.playerStand.on("click", this.on_playerStand_click.bind(this));
         },
 
         getThisPlayer: function () {
@@ -574,17 +629,17 @@ $(document).ready(function () {
                     var div = $("<div>").attr("id", key);
                     div.append($("<p>").text(player.name));
                     div.append($("<div>").addClass("cardContainer"))
-                this.ui.playerContainer.append(div);
+                    this.ui.playerContainer.append(div);
                 }, this);
 
-                var thisPlayer = this.getThisPlayer();
+                var thisPlayer = this.getThisPlayer(); // todo: remove this function and use this.comm.getThisPlayer
                 var host = this.getHostPlayer();
                 if (thisPlayer) {
-                    var minBasedOnBalance = Math.max(thisPlayer.balance, 1); // if you have negative balance, can still bet 1
-                    var maxBasedOnHost = Math.min((host || {}).balance || 1, 1); // can bet up to host's balance, or at least 1 if host is broke
-                    var maxBasedOnBalance = Math.min(maxBasedOnHost, thisPlayer.balance); // can't bet more than you have
-                    this.ui.placeBet.attr("min", minBasedOnBalance);
-                    this.ui.placeBet.attr("max", maxBasedOnBalance);
+                    // var minBasedOnBalance = Math.max(thisPlayer.balance, 1); // if you have negative balance, can still bet 1
+                    // var maxBasedOnBalance = Math.min(, thisPlayer.balance); // can't bet more than you have
+                    var allowedBet = this.game.player_getAllowedBet();
+                    this.ui.placeBet.attr("min", allowedBet.min);
+                    this.ui.placeBet.attr("max", allowedBet.max);
                 }
                 if (this.comm.isHosting) {
                     this.game.host_beginHand();
@@ -593,13 +648,13 @@ $(document).ready(function () {
 
             dealCard: function onDealCard(args) {
                 var userDiv;
-                if(args.user == "dealer") {
+                if (args.user == "dealer") {
                     userDiv = $("#dealer");
                 } else {
                     userDiv = $("#" + args.user);
                 }
 
-                (args.cards || []).forEach(function(card) {
+                (args.cards || []).forEach(function (card) {
                     var cardContainer = userDiv.find(".cardContainer");
                     cardContainer.append($("<span>").text(CardDeck.getRankName(card.rank) + CardDeck.getSuitSymbol(card.suit)));
                 }, this);
@@ -625,6 +680,12 @@ $(document).ready(function () {
             //@ts-ignore
             var bet = parseInt(this.ui.myBet.val()) || 1;
             this.game.player_placeBet(bet);
+        },
+        on_playerHit_click: function on_playerHit_click(e) {
+            this.game.player_hit();
+        },
+        on_playerStand_click: function on_playerStand_click(e) {
+            this.game.player_stand();
         },
         on_startGame_click: function (e) {
             var self = this;

@@ -33,3 +33,9 @@ Messages:
     playerUp { - (action) It's a player's turn
         user: PlayerID
     }
+    hit { - (request->action / action) - player requesting his or dealer hit
+        user: PlayerID or "dealer"
+    }
+    stand { - (request->action / action) - player or dealer standing
+        user: PlayerID or "dealer"
+    }
