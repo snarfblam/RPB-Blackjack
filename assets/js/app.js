@@ -245,7 +245,8 @@ function RpbComm() {
         if (this.isHosting) {
             // Use a transaction to retreive requests then delete them
             this.nodes.requests.transaction(function (req) {
-                requestList = req;
+                requestList = req || requestList;
+                console.log("REQUEST (T) = ", req)
                 return null;
             })
                 .then(function () {
@@ -450,8 +451,14 @@ RpbGameLogic.prototype.requestHandlers = {
                     this.comm.dispatchAction(RpbGameLogic.messages.stand, args);
                     this.playerQueue.shift();
 
-                    // left off here
-                    
+                    if(this.playerQueue.length > 0) {
+                        // next player is up
+                        this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
+                    } else {
+                        alert("dealer up");
+                    // else dealer up
+
+                    }
                 }
             }
         }
