@@ -144,7 +144,11 @@ function RpbComm() {
             }).catch(function (error) {
                 alert(JSON.stringify(error));
             });
-    }
+    };
+
+    this.updatePlayer = function updatePlayer(playerID, playerData) {
+        this.nodes.players.child(playerID).set(playerData);
+    };
 
 
     this.createNewGame = function () {
@@ -193,6 +197,16 @@ function RpbComm() {
         if (msgArgObject) msg.args = msgArgObject;
         this.nodes.requests.push(msg);
     };
+    this.startRound = function(msgString, msgArgObject) {
+        // var msg = { action: msgString };
+        // if (msgArgObject) msg.args = msgArgObject;
+        
+        // When we start a new round, we clear out all old requests and actions
+        this.nodes.requests.set(null);
+        this.nodes.actions.set(null);
+        //this.nodes.actions.set({"0": msg});
+        this.dispatchAction(msgString, msgArgObject);
+    }
     /** Sends a message to clients informing them that a game action has occurred */
     this.dispatchAction = function (msgString, msgArgObjcet) {
         var msg = { action: msgString };
@@ -237,12 +251,13 @@ function RpbComm() {
         this.raiseEvent(this.events.playerListChanged);
     };
     this.ondb_requests_value = function (snapshot) {
-        console.log("REQUEST + ", snapshot.val());
+        var val = snapshot.val();
+        console.log("REQUEST + ", val);
         var self = this;
         var requestList;
 
         //this.comm.cached.requests = snapshot.val();
-        if (this.isHosting) {
+        if (this.isHosting && val) {
             console.log("Initiate transaction for ", snapshot.val());
             // Use a transaction to retreive requests then delete them
             this.nodes.requests.transaction(function (req) {
@@ -308,7 +323,7 @@ function RpbGameLogic() {
         // .betPlaced: bool - to be set by placeBet function
     };
     /** @type Card[] */
-    this.dealerCards = [];
+    this.dealerHand = [];
 
     /** Must be set to the RpbComm object. Used to get and set player info.
      * @type {RpbComm}
@@ -319,6 +334,8 @@ function RpbGameLogic() {
     this.playerQueue = [];
 
 }
+/** The amount, in addition to the original bet, to award to the player for blackjack */
+RpbGameLogic.blackjackPayoutRatio = 1.5;
 RpbGameLogic.states = {
     none: "None",
     placingBets: "placingBets",
@@ -330,7 +347,19 @@ RpbGameLogic.messages = {
     playerUp: "playerUp",
     hit: "hit",
     stand: "stand",
+    bust: "bust",
+    dealerBlackjack: "dealerBlackjack",
+    balanceChange: "balanceChange",
 };
+RpbGameLogic.playerResults = {
+    blackjack: "blackjack",
+    won: "won",
+    dealerBlackjack: "dealerBlackjack",
+    lost: "lost",
+    push: "push",
+    bust: "bust",
+    dealerBust: "dealerBust",
+}
 RpbGameLogic.prototype.player_getAllowedBet = function player_getMinimumBet() {
     return {
         min: this.minimumBet,
@@ -347,13 +376,17 @@ RpbGameLogic.prototype.init = function init() {
     this.requestHandlers.handlerContext = this;
     this.comm.actionHandlers.push(this.actionHandlers);
     this.comm.requestHandlers.push(this.requestHandlers);
+
+    this.initialized = true;
 };
 /** Prepares a hand be re-initializing player hand data. Bets may be made. No cards will be dealt until
  * dealHand is called.
  */
 RpbGameLogic.prototype.host_beginHand = function () {
+    this.deck.returnCards();
+
     if (!this.initialized) this.init();
-    this.dealerCards = [];
+    this.dealerHand = [];
     this.playerInfo = {};
 
     forEachIn(this.comm.cached.players, function (key, value) {
@@ -397,23 +430,32 @@ RpbGameLogic.prototype.toSimpleCard = function toSimpleCard(card) {
 }
 RpbGameLogic.prototype.host_initialDeal = function host_initialDeal() {
     // I'm dealing out of order and I don't even care
-    this.dealerCards = [this.getSimpleCard(), this.getSimpleCard()];
+    this.dealerHand = [this.getSimpleCard(), this.getSimpleCard()];
     this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
         user: "dealer",
-        cards: this.dealerCards,
+        cards: this.dealerHand,
     });
 
     forEachIn(this.playerInfo, function (key, value) {
-        value.cards = [this.getSimpleCard(), this.getSimpleCard()];
+        value.hand = [this.getSimpleCard(), this.getSimpleCard()];
         this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
             user: key,
-            cards: value.cards,
+            cards: value.hand,
         });
     }, this)
 
     this.state = RpbGameLogic.states.awaitingPlayers;
-    this.playerQueue = Object.getOwnPropertyNames(this.playerInfo);
-    this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
+
+    var dealerBlackjack = CardDeck.getHandTotal(this.dealerHand) == 21;
+
+    if (dealerBlackjack) {
+        this.playerQueue = [];
+        this.comm.dispatchAction(RpbGameLogic.messages.dealerBlackjack);
+        this.host_concludeRound();
+    } else {
+        this.playerQueue = Object.getOwnPropertyNames(this.playerInfo);
+        this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
+    }
 }
 
 RpbGameLogic.prototype.host_registerBet = function (userKey, amt) {
@@ -436,6 +478,152 @@ RpbGameLogic.prototype.host_registerBet = function (userKey, amt) {
         this.host_initialDeal();
     }
 };
+RpbGameLogic.prototype.host_activePlayerHit = function () {
+    var user = this.playerQueue[0]
+    var info = this.playerInfo[user];
+    if (info) {
+        var total = CardDeck.getHandTotal(info.hand);
+        if (total < 21) {
+            var card = this.deck.getCard();
+            info.hand.push(card);
+            this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
+                user: user,
+                cards: [this.toSimpleCard(card)],
+            });
+
+            var newTotal = CardDeck.getHandTotal(info.hand);
+            if (newTotal > 21) {
+                //this.comm.dispatchAction(RpbGameLogic.messages.bust, { user: user });
+                this.host_moveToNextPlayer(RpbGameLogic.messages.bust);
+            }
+        }
+    }
+}
+RpbGameLogic.prototype.host_activePlayerStand = function () {
+    // var user = this.playerQueue[0];
+    // var info = this.playerInfo[user];
+    // if (info) {
+    //     this.comm.dispatchAction(RpbGameLogic.messages.stand, { user: user });
+    //     this.playerQueue.shift();
+
+    //     if (this.playerQueue.length > 0) {
+    //         // next player is up
+    //         this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
+    //     } else {
+    //         // dealer is up
+    //         var dealerTotal = CardDeck.getHandTotal(this.dealerHand);
+    //         while (dealerTotal < 17) {
+    //             var newCard = this.deck.getCard();
+    //             this.dealerHand.push(newCard);
+    //             this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
+    //                 user: "dealer",
+    //                 cards: [this.toSimpleCard(newCard)]
+    //             });
+
+    //             dealerTotal = CardDeck.getHandTotal(this.dealerHand);
+    //         }
+    //     }
+    // }
+    this.host_moveToNextPlayer(RpbGameLogic.messages.stand);
+};
+
+/** Ends the current player's turn. The specified message is dispatched. 
+ * If it becomes the dealer's turn, he plays automatically. 
+ * Otherwise a 'playerUp' message is dispatched for the new player. */
+RpbGameLogic.prototype.host_moveToNextPlayer = function (message) {
+    var user = this.playerQueue[0];
+    var info = this.playerInfo[user];
+    if (info) {
+        if (message) this.comm.dispatchAction(message, { user: user });
+        this.playerQueue.shift();
+
+        if (this.playerQueue.length > 0) {
+            // next player is up
+            this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
+        } else {
+            this.host_performDealerTurn();
+        }
+    }
+};
+RpbGameLogic.prototype.host_performDealerTurn = function () {
+    var dealerTotal = CardDeck.getHandTotal(this.dealerHand);
+    while (dealerTotal < 17) {
+        var newCard = this.deck.getCard();
+        this.dealerHand.push(newCard);
+        this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
+            user: "dealer",
+            cards: [this.toSimpleCard(newCard)]
+        });
+
+        dealerTotal = CardDeck.getHandTotal(this.dealerHand);
+    }
+
+    this.host_concludeRound();
+};
+RpbGameLogic.prototype.host_concludeRound = function () {
+    var dealerValue = CardDeck.getHandTotal(this.dealerHand);
+    var dealerHasBlackjack = dealerValue == 21 && this.dealerHand.length == 2;
+    var dealerBust = dealerValue > 21;
+
+    forEachIn(this.playerInfo, function (playerID, player) {
+        var playerValue = CardDeck.getHandTotal(player.hand);
+        var playerHasBlackjack = playerValue == 21 && player.hand.length == 2;
+        var playerBust = playerValue > 21;
+
+        var bet = player.bet;
+        var balanceChange, reason;
+
+        if (dealerHasBlackjack) {
+            if (playerHasBlackjack) {
+                balanceChange = 0;
+                reason = RpbGameLogic.playerResults.push;
+            } else {
+                balanceChange = -bet;
+                reason = RpbGameLogic.playerResults.dealerBlackjack;
+            }
+        } else {
+            if (playerHasBlackjack) {
+                balanceChange = Math.ceil(bet * RpbGameLogic.blackjackPayoutRatio);
+                reason = RpbGameLogic.playerResults.blackjack;
+            } else {
+                if (playerBust) {
+                    balanceChange = -bet;
+                    reason = RpbGameLogic.playerResults.bust;
+                } else if (dealerBust) {
+                    balanceChange = bet;
+                    reason = RpbGameLogic.playerResults.dealerBust;
+                } else {
+                    if (playerValue > dealerValue) {
+                        balanceChange = bet;
+                        reason = RpbGameLogic.playerResults.won;
+                    } else if (playerValue < dealerValue) {
+                        balanceChange = -bet;
+                        reason = RpbGameLogic.playerResults.lost;
+                    } else {
+                        balanceChange = 0;
+                        reason = RpbGameLogic.playerResults.push;
+                    }
+                }
+            }
+        }
+
+        this.host_ChangeUserBalance(playerID, balanceChange, reason);
+    }, this); // forEachIn
+};
+RpbGameLogic.prototype.host_ChangeUserBalance = function host_ChangeUserBalance(playerID, amt, reason) {
+    var user = this.comm.cached.players[playerID];
+    user.balance += amt;
+    this.comm.updatePlayer(playerID, user);
+
+    if (reason) {
+        this.comm.dispatchAction(RpbGameLogic.messages.balanceChange, {
+            user: playerID,
+            amount: amt,
+            reason: reason,
+        });
+    }
+}
+
 RpbGameLogic.prototype.requestHandlers = {
     placeBet: function (args) {
         if (this.comm.isHosting) {
@@ -446,23 +634,7 @@ RpbGameLogic.prototype.requestHandlers = {
         if (this.comm.isHosting) {
             var user = args.user;
             if (this.playerQueue[0] == user) {
-                var info = this.playerInfo[user];
-                if (info) {
-                    var total = CardDeck.getHandTotal(info.cards);
-                    if (total < 21) {
-                        var card = this.deck.getCard();
-                        info.hand.push(card);
-                        this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
-                            user: args.user,
-                            cards: [this.toSimpleCard(card)],
-                        });
-
-                        var newTotal = CardDeck.getHandTotal(info.cards);
-                        if(newTotal > 21) {
-                            
-                        }
-                    }
-                }
+                this.host_activePlayerHit();
             }
         }
     },
@@ -470,29 +642,7 @@ RpbGameLogic.prototype.requestHandlers = {
         if (this.comm.isHosting) {
             var user = args.user;
             if (this.playerQueue[0] == user) {
-                var info = this.playerInfo[user];
-                if (info) {
-                    this.comm.dispatchAction(RpbGameLogic.messages.stand, args);
-                    this.playerQueue.shift();
-
-                    if (this.playerQueue.length > 0) {
-                        // next player is up
-                        this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
-                    } else {
-                        // dealer is up
-                        var dealerTotal = CardDeck.getHandTotal(this.dealerCards);
-                        while (dealerTotal < 17) {
-                            var newCard = this.deck.getCard();
-                            this.dealerCards.push(newCard);
-                            this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
-                                user: "dealer",
-                                cards: [this.toSimpleCard(newCard)]
-                            });
-
-                            dealerTotal = CardDeck.getHandTotal(this.dealerCards);
-                        }
-                    }
-                }
+                this.host_activePlayerStand();
             }
         }
     }
@@ -673,7 +823,7 @@ $(document).ready(function () {
         /** Sends a message to all clients, including the sender */
         requestHandlers: {
             startGame: function (args) {
-                this.comm.dispatchAction(this.messages.startGame);
+                this.comm.startRound(this.messages.startGame);                
             },
         },
 
@@ -727,6 +877,11 @@ $(document).ready(function () {
                 var player = this.comm.cached.players[args.user].name;
                 this.ui.status.text(player + " is up!");
             },
+            balanceChange: function onBalanceChange(args) {
+                var name = this.comm.cached.players[args.user].name;
+                var balance = this.comm.cached.players[args.user].balance;
+                this.ui.status.append($("<p>").text(name + ": " + args.amount + " -> " + balance + " (" + args.reason + ")"));
+            }
         },
         commEventHandlers: {
             hostSet: function () {

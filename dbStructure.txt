@@ -39,3 +39,19 @@ Messages:
     stand { - (request->action / action) - player or dealer standing
         user: PlayerID or "dealer"
     }
+    bust { - (action) - player or dealer has bust
+        user: PlayerID or "dealer"
+    }
+    dealerBlackjack {} - (action) - dealer has blackjack
+    balanceChange { - (action) - Player's balance has changed (at the conclusion of a round)
+        user: PlayerID
+        amount: (number) - negative if player lost money
+        reason: 
+            "blackjack" - player won by blackjack
+            "won" - player otherwise won
+            "dealerBlackjack" - player lost due to dealer's blackjack
+            "lost" - player otherwise lost
+            "push" - player tied dealer
+            "bust" - player bust
+            "dealerBust" - dealer bust
+    }
