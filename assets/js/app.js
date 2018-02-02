@@ -197,10 +197,10 @@ function RpbComm() {
         if (msgArgObject) msg.args = msgArgObject;
         this.nodes.requests.push(msg);
     };
-    this.startRound = function(msgString, msgArgObject) {
+    this.startRound = function (msgString, msgArgObject) {
         // var msg = { action: msgString };
         // if (msgArgObject) msg.args = msgArgObject;
-        
+
         // When we start a new round, we clear out all old requests and actions
         this.nodes.requests.set(null);
         this.nodes.actions.set(null);
@@ -350,6 +350,7 @@ RpbGameLogic.messages = {
     bust: "bust",
     dealerBlackjack: "dealerBlackjack",
     balanceChange: "balanceChange",
+    playerEvent: "playerEvent",
 };
 RpbGameLogic.playerResults = {
     blackjack: "blackjack",
@@ -359,6 +360,12 @@ RpbGameLogic.playerResults = {
     push: "push",
     bust: "bust",
     dealerBust: "dealerBust",
+}
+RpbGameLogic.playerEvents = {
+    hit: "hit",
+    stand: "stand",
+    bust: "bust",
+    blackjack: "blackjack",
 }
 RpbGameLogic.prototype.player_getAllowedBet = function player_getMinimumBet() {
     return {
@@ -428,6 +435,12 @@ RpbGameLogic.prototype.getSimpleCard = function getSimpleCard() {
 RpbGameLogic.prototype.toSimpleCard = function toSimpleCard(card) {
     return { rank: card.rank, suit: card.suit };
 }
+RpbGameLogic.prototype.host_sendPlayerEvent = function host_sendPlayerEvent(user, eventName) {
+    this.comm.dispatchAction(RpbGameLogic.messages.playerEvent, {
+        user: user,
+        event: eventName,
+    });
+}
 RpbGameLogic.prototype.host_initialDeal = function host_initialDeal() {
     // I'm dealing out of order and I don't even care
     this.dealerHand = [this.getSimpleCard(), this.getSimpleCard()];
@@ -442,6 +455,9 @@ RpbGameLogic.prototype.host_initialDeal = function host_initialDeal() {
             user: key,
             cards: value.hand,
         });
+
+        var blackjack = 21 == CardDeck.getHandTotal(value.hand);
+        this.host_sendPlayerEvent(key, RpbGameLogic.playerEvents.blackjack);
     }, this)
 
     this.state = RpbGameLogic.states.awaitingPlayers;
@@ -454,7 +470,12 @@ RpbGameLogic.prototype.host_initialDeal = function host_initialDeal() {
         this.host_concludeRound();
     } else {
         this.playerQueue = Object.getOwnPropertyNames(this.playerInfo);
-        this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
+        var playerHasBlackjack = 21 == CardDeck.getHandTotal(this.playerInfo[this.playerQueue[0]].hand);
+        if (playerHasBlackjack) {
+            this.host_moveToNextPlayer();
+        } else {
+            this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
+        }
     }
 }
 
@@ -490,10 +511,14 @@ RpbGameLogic.prototype.host_activePlayerHit = function () {
                 user: user,
                 cards: [this.toSimpleCard(card)],
             });
+            this.host_sendPlayerEvent(user, RpbGameLogic.playerEvents.hit);
+
 
             var newTotal = CardDeck.getHandTotal(info.hand);
-            if (newTotal > 21) {
+            if (newTotal > 21) { // bust
                 //this.comm.dispatchAction(RpbGameLogic.messages.bust, { user: user });
+                this.host_sendPlayerEvent(user, RpbGameLogic.playerEvents.bust);
+
                 this.host_moveToNextPlayer(RpbGameLogic.messages.bust);
             }
         }
@@ -524,6 +549,8 @@ RpbGameLogic.prototype.host_activePlayerStand = function () {
     //         }
     //     }
     // }
+    this.host_sendPlayerEvent(this.playerQueue[0], RpbGameLogic.playerEvents.stand);
+
     this.host_moveToNextPlayer(RpbGameLogic.messages.stand);
 };
 
@@ -538,8 +565,15 @@ RpbGameLogic.prototype.host_moveToNextPlayer = function (message) {
         this.playerQueue.shift();
 
         if (this.playerQueue.length > 0) {
-            // next player is up
-            this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
+            // skip over any player with blackjack
+            var nextPlayer = this.playerQueue[0];
+            var nextPlayerHandValue = CardDeck.getHandTotal(this.playerInfo[nextPlayer].hand);
+            if (nextPlayerHandValue == 21) {
+                this.host_moveToNextPlayer(message);
+            } else {
+                // next player is up
+                this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
+            }
         } else {
             this.host_performDealerTurn();
         }
@@ -823,7 +857,7 @@ $(document).ready(function () {
         /** Sends a message to all clients, including the sender */
         requestHandlers: {
             startGame: function (args) {
-                this.comm.startRound(this.messages.startGame);                
+                this.comm.startRound(this.messages.startGame);
             },
         },
 
