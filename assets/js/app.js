@@ -243,28 +243,34 @@ function RpbComm() {
 
         //this.comm.cached.requests = snapshot.val();
         if (this.isHosting) {
+            console.log("Initiate transaction for ", snapshot.val());
             // Use a transaction to retreive requests then delete them
             this.nodes.requests.transaction(function (req) {
+                console.log("Enter transaction for ", req);
+                if (!req) {
+                    console.log("Abort transaction for", req);
+                    return undefined;
+                }
+
                 requestList = req || requestList;
-                console.log("REQUEST (T) = ", req)
+                console.log("requestList = ", req)
+                console.log("Set to null for ", req)
                 return null;
             })
                 .then(function () {
-                    processRequests.bind(self)(requestList);
+                    console.log("Final request list: ", requestList)
+                    self.processRequests.bind(self)(requestList);
                 });
-        } else {
-            // only host processes requests
-            //processRequests.bind(self)(snapshot.val());
         }
+    };
 
-        function processRequests(reqObject) {
-            var collection = [];
-            forEachIn(reqObject, function (key, value) {
-                collection.push(value);
-            });
-            this.cached.requests = collection;
-            this.processAllRequests();
-        }
+    this.processRequests = function processRequests(reqObject) {
+        var collection = [];
+        forEachIn(reqObject, function (key, value) {
+            collection.push(value);
+        });
+        this.cached.requests = collection;
+        this.processAllRequests();
     };
     this.ondb_waitingPlayers_value = function (snapshot) {
         console.log("WAITING + ", snapshot.val());
@@ -301,6 +307,9 @@ function RpbGameLogic() {
         // .bet: number
         // .betPlaced: bool - to be set by placeBet function
     };
+    /** @type Card[] */
+    this.dealerCards = [];
+
     /** Must be set to the RpbComm object. Used to get and set player info.
      * @type {RpbComm}
      */
@@ -344,6 +353,7 @@ RpbGameLogic.prototype.init = function init() {
  */
 RpbGameLogic.prototype.host_beginHand = function () {
     if (!this.initialized) this.init();
+    this.dealerCards = [];
     this.playerInfo = {};
 
     forEachIn(this.comm.cached.players, function (key, value) {
@@ -353,6 +363,7 @@ RpbGameLogic.prototype.host_beginHand = function () {
             betPlaced: false,
         }
     }, this);
+
 
     this.state = RpbGameLogic.states.placingBets;
 }
@@ -381,19 +392,22 @@ RpbGameLogic.prototype.getSimpleCard = function getSimpleCard() {
     return { rank: card.rank, suit: card.suit };
 
 }
+RpbGameLogic.prototype.toSimpleCard = function toSimpleCard(card) {
+    return { rank: card.rank, suit: card.suit };
+}
 RpbGameLogic.prototype.host_initialDeal = function host_initialDeal() {
     // I'm dealing out of order and I don't even care
-    var dealerCards = [this.getSimpleCard(), this.getSimpleCard()];
+    this.dealerCards = [this.getSimpleCard(), this.getSimpleCard()];
     this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
         user: "dealer",
-        cards: dealerCards,
+        cards: this.dealerCards,
     });
 
     forEachIn(this.playerInfo, function (key, value) {
-        var cards = [this.getSimpleCard(), this.getSimpleCard()];
+        value.cards = [this.getSimpleCard(), this.getSimpleCard()];
         this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
             user: key,
-            cards: cards,
+            cards: value.cards,
         });
     }, this)
 
@@ -406,6 +420,8 @@ RpbGameLogic.prototype.host_registerBet = function (userKey, amt) {
     var playerInfo = this.playerInfo[userKey];
     playerInfo.bet = amt;
     playerInfo.betPlaced = true;
+
+    console.log("bet from ", this.comm.cached.players[userKey].name + "/" + userKey);
 
     // Notify clients
     this.comm.dispatchAction(RpbGameLogic.messages.placeBet, { user: userKey, bet: amt });
@@ -432,12 +448,20 @@ RpbGameLogic.prototype.requestHandlers = {
             if (this.playerQueue[0] == user) {
                 var info = this.playerInfo[user];
                 if (info) {
-                    var card = this.deck.getCard();
-                    info.hand.push(card);
-                    this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
-                        user: args.user,
-                        cards: [this.getSimpleCard(card)],
-                    }); 
+                    var total = CardDeck.getHandTotal(info.cards);
+                    if (total < 21) {
+                        var card = this.deck.getCard();
+                        info.hand.push(card);
+                        this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
+                            user: args.user,
+                            cards: [this.toSimpleCard(card)],
+                        });
+
+                        var newTotal = CardDeck.getHandTotal(info.cards);
+                        if(newTotal > 21) {
+                            
+                        }
+                    }
                 }
             }
         }
@@ -451,13 +475,22 @@ RpbGameLogic.prototype.requestHandlers = {
                     this.comm.dispatchAction(RpbGameLogic.messages.stand, args);
                     this.playerQueue.shift();
 
-                    if(this.playerQueue.length > 0) {
+                    if (this.playerQueue.length > 0) {
                         // next player is up
                         this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
                     } else {
-                        alert("dealer up");
-                    // else dealer up
+                        // dealer is up
+                        var dealerTotal = CardDeck.getHandTotal(this.dealerCards);
+                        while (dealerTotal < 17) {
+                            var newCard = this.deck.getCard();
+                            this.dealerCards.push(newCard);
+                            this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
+                                user: "dealer",
+                                cards: [this.toSimpleCard(newCard)]
+                            });
 
+                            dealerTotal = CardDeck.getHandTotal(this.dealerCards);
+                        }
                     }
                 }
             }
@@ -558,6 +591,27 @@ CardDeck.getSuitSymbol = function getSuitSymbol(suit) {
 CardDeck.getRankName = function getRankName(rank) {
     return CardDeck.rankNames[rank] || "[rank: " + (rank || "") + "]";
 };
+CardDeck.getHandTotal = function getDeckTotal(cards) {
+    var total = 0;
+    var aceCount = 0;
+    cards.forEach(function (card) {
+        if (card.rank == 1) {
+            aceCount++;
+            total++;
+        } else if (card.rank >= 10) {
+            total += 10;
+        } else {
+            total += card.rank;
+        }
+    });
+
+    while (aceCount > 0 && total <= 11) {
+        aceCount--;
+        total += 10;
+    }
+
+    return total;
+}
 
 
 
@@ -625,6 +679,8 @@ $(document).ready(function () {
 
         actionHandlers: {
             startGame: function (args) {
+                this.ui.playerContainer.empty();
+
                 var dealerDiv = $("<div>").attr("id", "dealer");
                 dealerDiv.append($("<p>").text("dealer"));
                 dealerDiv.append($("<div>").addClass("cardContainer"))
@@ -647,6 +703,7 @@ $(document).ready(function () {
                     var allowedBet = this.game.player_getAllowedBet();
                     this.ui.placeBet.attr("min", allowedBet.min);
                     this.ui.placeBet.attr("max", allowedBet.max);
+                    this.ui.placeBet.val(allowedBet.min);
                 }
                 if (this.comm.isHosting) {
                     this.game.host_beginHand();
