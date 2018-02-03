@@ -820,6 +820,29 @@ $(document).ready(function () {
     var rpbGame = {
         comm: new RpbComm(),
         game: new RpbGameLogic(),
+
+
+        randomUserAdjectives: [
+            "contemplative", "questionable", "unsavory", "unpredictable", "charming",
+            "offsensive", "articulate", "conniving", "plotting", "inscrutable", "mysterious",
+            "intimidating", "laughable", "boastful", "arrogant", "mean-spirited", "amenable",
+            "hilariouis", "boring", "lifeless", "furious", "confused", "agitated", "jumpy",
+            "fussy", "hesitant", "anxious", "volatile", "timid", "confident", "dashing",
+            "gallant", "spunky", "virile", "immature", "cultured", "clairvoyant", "perveptive",
+            "thoughtful", "worldy", "insightful", "eccentric", "bizarre", "whimsical", "mischievous",
+        ],
+        randomUserNouns: [
+            "interloper", "animal", "baby", "charlatan", "communist", "dreamr", "deadbeat", "devil",
+            "drifter", "delinquent", "bro", "failure", "friend", "follower", "freak", "genius",
+            "goofball", "grandmother", "grump", "heathen", "hero", "high-roller", "hipster", 
+            "hypocrate", "politician", "invalid", "jerk", "lawyer", "leader", "liar",
+            "loudmouth", "lover", "mastermind", "maker", "menace", "misfit", "nobody", 
+            "pacifist", "party pooper", "patriot", "pessimist", "pioneer", "player", "professional",
+            "phychic", "punk", "saint", "show-off", "skeptic", "spectator", "star", "sucker",
+            "sweetheart", "theif", "tormentor", "traitor", "traveler", "president", "user",
+            "vinicator", "avenger", "weasel", "wizard", "protector", "humanitarian",
+        ],
+
         messages: {
             startGame: "startGame",
             chat: "chat",
@@ -889,7 +912,13 @@ $(document).ready(function () {
 
             this.ui.chatButton.on("click", this.on_chatButton_click.bind(this));
         },
-
+        AddChatMessage: function(user, text) {
+            var newText = $("<p>");
+            if(user) newText.append($("<strong>").text(user + ": "));
+            newText.append($("<span>").text(text));
+            this.ui.chatBox.append(newText);
+            this.ui.chatBox.scrollTop(this.ui.chatBox[0].scrollHeight);
+        },
         getThisPlayer: function () {
             return (this.comm.cached.players || {})[this.comm.myUserKey];
         },
@@ -1009,11 +1038,7 @@ $(document).ready(function () {
                 if (!user) user = this.comm.cached.waitingPlayers[args.user];
                 var userName = user.name;
                 if (userName) {
-                    var newText = $("<p>");
-                    newText.append($("<strong>").text(userName + ": "));
-                    newText.append($("<span>").text(args.text));
-                    this.ui.chatBox.append(newText);
-                    this.ui.chatBox.scrollTop(this.ui.chatBox[0].scrollHeight);
+                    this.AddChatMessage(userName, args.text);
                 }
             },
             placeBet: function (args) {
@@ -1073,7 +1098,7 @@ $(document).ready(function () {
 
                 if (totalCardCount == 2 && total == 21) {
                     userDiv.find(".player-status").text(" - Blackjack!");
-                } else if (total >= 21) {
+                } else if (total > 21) {
                     userDiv.find(".player-status").text(" - Bust!");
                 }
             },
