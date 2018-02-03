@@ -26,6 +26,18 @@ body {
     text-shadow: 1px 2px 0px black;
 }
 
+em {
+    font-style: italic;
+}
+
+hr {
+    height: 1px;
+    margin: 0 auto;
+    border: none;
+    background: rgba(255, 255, 196, 0.7);
+    width: 95%;
+}
+
 .boxy-box {
     padding: .6em;
     margin: .4em;
@@ -54,12 +66,29 @@ body {
     display: inline-block;
     width: 300px;
 }
-.player-box p {
+.player-box .player-box-header {
     background: rgba(0,0,0,.45);
     padding: .5em;
     padding-bottom: 0.25em;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    
+}
+
+.player-box .player-money {
+    margin: 4px;
+    color: rgba(255,255,255,0.7);
+    text-shadow: none;
+}
+.player-box .player-total,
+.player-box .player-bet {
+    float: right;
+}
+
+.player-box.player-up .cardContainer {
+    background: rgba(255,255,255,0.4);
 }
 
 .dealer-box p {
@@ -67,6 +96,7 @@ body {
 }
 .cardContainer {
     padding: .5em;
+    min-height: 100px;
 }
 
 .game-info {
@@ -79,15 +109,21 @@ body {
     padding: 1rem;
 }
 
+.card-spacer {
+    display: inline-block;
+    width: 55px;
+    height:100px;
+}
 .playing-card {
-    background: white;
+    display: inline-block;
     width: 70px;
     height: 100px;
-    display: inline-block;
+    margin-right: -50px;
+
+    background: white;
     border: 1px solid #040;
     border-radius: 6px;
     box-shadow: 0 0 1px black inset;
-    margin-right: -50px;
     text-shadow: none;
     color: black;
     position: relative;

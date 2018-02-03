@@ -583,7 +583,7 @@ RpbGameLogic.prototype.host_moveToNextPlayer = function (message) {
 };
 RpbGameLogic.prototype.host_performDealerTurn = function () {
     this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: "dealer" });
-    
+
     var dealerTotal = CardDeck.getHandTotal(this.dealerHand);
     while (dealerTotal < 17) {
         var newCard = this.deck.getCard();
@@ -880,33 +880,70 @@ $(document).ready(function () {
             return (this.comm.cached.players || {})[this.comm.cached.host];
         },
 
+        createPlayerElement: function (id, displayName, classString, balance) {
+            var resultDiv = $("<div>").attr("id", id).addClass(classString);
+
+            var statusSpan = $("<span class='player-status'>");
+            var totalSpan = $("<span class='player-total'>").text("[ ]");
+            var playerHeader = $("<p>")
+                .addClass("player-box-header")
+                .text(displayName)
+                .append(statusSpan)
+                .append(totalSpan);
+
+            var balanceSpan = $("<span class='player-balance'>$" + balance + "</span>");
+            var betSpan = $("<span class='player-bet'></span>");
+            var playerMoney = $("<p>")
+                .addClass("player-money")
+                .append(balanceSpan)
+                .append(betSpan);
+
+            resultDiv.append(playerHeader);
+            resultDiv.append(playerMoney);
+            resultDiv.append("<hr>");
+            resultDiv.append($("<div>").addClass("cardContainer"));
+            return resultDiv;
+        },
         createCardElement: function (card) {
             var cardSymbol = CardDeck.suitSymbols[card.suit];
-            var cardHtml = CardDeck.rankNames[card.rank] + "<br>" + cardSymbol;
+            var cardHtmlUL =
+                "<span class='card-value'>" +
+                CardDeck.rankNames[card.rank] +
+                "</span><br>" + cardSymbol;
+            var cardHtmlBR =
+                CardDeck.rankNames[card.rank] +
+                "<br>" + cardSymbol;
 
             var div = $("<div>").addClass("playing-card card-suit-" + card.suit);
-            var numDivUL = $("<div>").addClass("playing-card-UL").html(cardHtml);
-            var numDivBR = $("<div>").addClass("playing-card-BR").html(cardHtml);
-            
-            if(card.down) div.addClass("card-down");
-            if(card.rank == 11) div.addClass("card-jack");
-            if(card.rank == 12) div.addClass("card-queen");
-            if(card.rank == 13) div.addClass("card-king");
-            
+            var numDivUL = $("<div>").addClass("playing-card-UL").html(cardHtmlUL);
+            var numDivBR = $("<div>").addClass("playing-card-BR").html(cardHtmlBR);
+
+            if (card.down) div.addClass("card-down");
+            if (card.rank == 11) div.addClass("card-jack");
+            if (card.rank == 12) div.addClass("card-queen");
+            if (card.rank == 13) div.addClass("card-king");
+
             div.append(numDivUL).append(numDivBR);
             var symbols = this.cardSymbolLayouts[card.rank];
-            symbols.forEach(function(positionNumber) {
+            symbols.forEach(function (positionNumber) {
                 var symbolDiv = $("<div>").addClass("sym" + positionNumber + " card-symbol");
                 symbolDiv.text(cardSymbol)
                 div.append(symbolDiv);
             }, this);
-            
+
             return div;
         },
 
-        allCardsFaceUp: function() {
+        allCardsFaceUp: function () {
             $(".card-down").removeClass("card-down");
         },
+
+        getPlayerDiv: function(user) {
+            if(user == "dealer") return $("#dealer");
+            return $("#" + user);
+        },
+
+
         /** Sends a message to all clients, including the sender */
         requestHandlers: {
             startGame: function (args) {
@@ -918,17 +955,14 @@ $(document).ready(function () {
             startGame: function (args) {
                 this.ui.playerContainer.empty();
 
-                var dealerDiv = $("<div>").attr("id", "dealer").addClass("player-box dealer-box");
-                dealerDiv.append($("<p>").text("dealer"));
-                dealerDiv.append($("<div>").addClass("cardContainer"))
+                var dealerDiv = this.createPlayerElement("dealer", "dealer", "player-box dealer-box", " ∞");
                 this.ui.playerContainer.append(dealerDiv);
 
                 forEachIn(this.comm.cached.players, function (key, value) {
                     var player = value;
+                    var balance = player.balance;
 
-                    var div = $("<div>").attr("id", key).addClass("player-box");
-                    div.append($("<p>").text(player.name));
-                    div.append($("<div>").addClass("cardContainer"))
+                    var div = this.createPlayerElement(key, player.name, "player-box", balance);
                     this.ui.playerContainer.append(div);
                 }, this);
 
@@ -946,7 +980,9 @@ $(document).ready(function () {
                     this.game.host_beginHand();
                 }
             },
-
+            placeBet: function(args) {
+                this.getPlayerDiv(args.user).find(".player-bet").text("Bet: $" + args.bet);
+            },
             dealCard: function onDealCard(args) {
                 var userDiv;
                 if (args.user == "dealer") {
@@ -956,36 +992,78 @@ $(document).ready(function () {
                 }
 
                 var cardContainer = userDiv.find(".cardContainer");
-                var firstCards = userDiv.find(".playing-card").length == 0;
+                var totalCardCount = userDiv.find(".playing-card").length;
+                var firstCards = (totalCardCount == 0);
+                totalCardCount += args.cards.length;
 
                 (args.cards || []).forEach(function (card) {
                     //cardContainer.append($("<span>").text(CardDeck.getRankName(card.rank) + CardDeck.getSuitSymbol(card.suit)));
                     cardContainer.append(this.createCardElement(card));
                 }, this);
 
-                if(firstCards) {
-                    cardContainer.append($("<div>").addClass(""))
+                if (firstCards) {
+                    cardContainer.append($("<div>").addClass("card-spacer"));
+                }
+
+                var cardValues = cardContainer.find(".card-value");
+                var total = 0;
+                var soft = false;
+                cardValues.each(function (index, elem) {
+                    var value = elem.innerText;
+                    if (value == 'A') {
+                        total += 1;
+                        soft = true;
+                    } else if (value == 'J' || value == 'Q' || value == 'K') {
+                        total += 10;
+                    } else {
+                        total += parseInt(value);
+                    }
+                });
+
+                if (soft) {
+                    if (total <= 11) {
+                        total += 10;
+                    } else {
+                        soft = false;
+                    }
+                }
+
+                var hiddenCards = userDiv.find(".card-down").length > 0;
+
+                var totalHtml = "[ " + total.toString() + " ]";
+                if (soft) totalHtml = "<em>" + totalHtml + "</em>";
+                if (hiddenCards) totalHtml = "[ ? ]";
+                userDiv.find(".player-total").html(totalHtml)
+
+                if (totalCardCount == 2 && total == 21) {
+                    userDiv.find(".player-status").text(" - Blackjack!");
+                } else if (total >= 21) {
+                    userDiv.find(".player-status").text(" - Bust!");
                 }
             },
             playerUp: function onPlayerUp(args) {
                 var name;
-                if(args.user == "dealer") {
+                if (args.user == "dealer") {
                     name = "dealer";
                     this.allCardsFaceUp();
                 } else {
                     name = this.comm.cached.players[args.user].name;
                 }
                 this.ui.status.text(name + " is up!");
+
+                $(".player-up").removeClass("player-up");
+                this.getPlayerDiv(args.user).addClass("player-up");
             },
             balanceChange: function onBalanceChange(args) {
                 var name = this.comm.cached.players[args.user].name;
                 var balance = this.comm.cached.players[args.user].balance;
                 this.ui.status.append($("<p>").text(name + ": " + args.amount + " -> " + balance + " (" + args.reason + ")"));
-            }
+            },
+            dealerBlackjack: function (args) {
+                this.allCardsFaceUp();
+            },
         },
-        dealerBlackjack: function(args){
-            this.allCardsFaceUp();
-        },
+
         commEventHandlers: {
             hostSet: function () {
                 this.updateHostDisplay();
