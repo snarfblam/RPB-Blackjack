@@ -822,6 +822,29 @@ $(document).ready(function () {
             playerStand: $("#player-stand"),
         },
 
+        /** List of symbol-position-lists to be used on each card */
+        cardSymbolLayouts: [
+            [], // Rank 0 is unused
+            // [ 0]  [13]  [ 2]  Don't even ask why they're in this order
+            //       [ 4]      
+            // [ 1]        [ 3]
+            // [11]  [ 5]  [12]
+            // [ 6]        [ 8]
+            //       [10]       
+            // [ 7]  [14]  [ 9]
+            [5],
+            [13, 14],
+            [13, 14, 5],
+            [0, 2, 7, 9],
+            [0, 2, 7, 9, 5],
+            [0, 2, 7, 9, 11, 12],
+            [0, 2, 7, 9, 11, 12, 4],
+            [0, 2, 7, 9, 11, 12, 4, 10],
+            [0, 2, 1, 3, 6, 8, 7, 9, 5],
+            [0, 2, 1, 3, 6, 8, 7, 9, 4, 10],
+            [], [], [], // J/Q/K
+        ],
+
         init: function () {
             var self = this;
             $(window).on("unload", function (e) {
@@ -853,7 +876,23 @@ $(document).ready(function () {
             return (this.comm.cached.players || {})[this.comm.cached.host];
         },
 
-
+        createCardElement: function (card) {
+            var cardSymbol = CardDeck.suitSymbols[card.suit];
+            var cardHtml = CardDeck.rankNames[card.rank] + "<br>" + cardSymbol;
+            var div = $("<div>").addClass("playing-card card-suit-" + card.suit);
+            var numDivUL = $("<div>").addClass("playing-card-UL").html(cardHtml);
+            var numDivBR = $("<div>").addClass("playing-card-BR").html(cardHtml);
+            
+            div.append(numDivUL).append(numDivBR);
+            var symbols = this.cardSymbolLayouts[card.rank];
+            symbols.forEach(function(positionNumber) {
+                var symbolDiv = $("<div>").addClass("sym" + positionNumber + " card-symbol");
+                symbolDiv.text(cardSymbol)
+                div.append(symbolDiv);
+            }, this);
+            
+            return div;
+        },
         /** Sends a message to all clients, including the sender */
         requestHandlers: {
             startGame: function (args) {
@@ -865,7 +904,7 @@ $(document).ready(function () {
             startGame: function (args) {
                 this.ui.playerContainer.empty();
 
-                var dealerDiv = $("<div>").attr("id", "dealer");
+                var dealerDiv = $("<div>").attr("id", "dealer").addClass("player-box dealer-box");
                 dealerDiv.append($("<p>").text("dealer"));
                 dealerDiv.append($("<div>").addClass("cardContainer"))
                 this.ui.playerContainer.append(dealerDiv);
@@ -873,7 +912,7 @@ $(document).ready(function () {
                 forEachIn(this.comm.cached.players, function (key, value) {
                     var player = value;
 
-                    var div = $("<div>").attr("id", key);
+                    var div = $("<div>").attr("id", key).addClass("player-box");
                     div.append($("<p>").text(player.name));
                     div.append($("<div>").addClass("cardContainer"))
                     this.ui.playerContainer.append(div);
@@ -904,7 +943,8 @@ $(document).ready(function () {
 
                 (args.cards || []).forEach(function (card) {
                     var cardContainer = userDiv.find(".cardContainer");
-                    cardContainer.append($("<span>").text(CardDeck.getRankName(card.rank) + CardDeck.getSuitSymbol(card.suit)));
+                    //cardContainer.append($("<span>").text(CardDeck.getRankName(card.rank) + CardDeck.getSuitSymbol(card.suit)));
+                    cardContainer.append(this.createCardElement(card));
                 }, this);
             },
             playerUp: function onPlayerUp(args) {

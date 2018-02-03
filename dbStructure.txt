@@ -26,7 +26,7 @@ Messages:
         user: PlayerID,
         bet: bet value
     }
-    dealCard { - (action) Gives card to a user
+    dealCard { - (action) Notification (to update table display)
         user: PlayerID or "dealer",
         cards: (card)[]
     }
@@ -43,6 +43,14 @@ Messages:
         user: PlayerID or "dealer"
     }
     dealerBlackjack {} - (action) - dealer has blackjack
+    playerEvent { (action) - Notification (to display in message window)
+        user: PlayerID
+        event:
+            "bust"
+            "blackjack"
+            "hit"
+            "stand"
+    }
     balanceChange { - (action) - Player's balance has changed (at the conclusion of a round)
         user: PlayerID
         amount: (number) - negative if player lost money

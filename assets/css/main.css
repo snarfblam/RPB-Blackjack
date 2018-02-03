@@ -1,0 +1,218 @@
+@import url('https://fonts.googleapis.com/css?family=Slabo+27px');
+@import url('https://fonts.googleapis.com/css?family=Patua+One');
+
+html {
+    height: 100%;
+    box-sizing: border-box;
+}
+body {
+    min-height: 100%;
+    margin: 0;
+    position: absolute;
+    /* Effing margins */
+    top: 0;
+    left: 0;
+}
+
+body {
+    background: url('../images/table.png');
+    min-width: 100%;
+    background-size: cover;
+    background-position-x: 50%;
+    color: white;
+    font-family: "Patua One";
+    font-size: 16px;
+    letter-spacing: 0.5px;
+    text-shadow: 1px 2px 0px black;
+}
+
+.boxy-box {
+    padding: .6em;
+    margin: .4em;
+    color: black;
+    text-shadow: none;
+    background: url("../images/pane.jpg");
+    background-size: 100% 100%; 
+    border: 4px solid white;
+    box-shadow: 
+        0 0 2px rgba(0, 0, 0, 1), 
+        /* 0 85px 180px 0 rgba(255, 255, 255, 1.0),  */
+        0 12px 8px -5px rgba(0, 0, 0, 0.85);
+        outline: 1px black solid;
+}
+
+.center-box {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.player-box {
+    border: 3px solid rgba(255, 255, 196, 0.7);
+    border-radius: 8px;
+    /* padding: 0.5em; */
+    margin: 0.25em;
+    display: inline-block;
+    width: 300px;
+}
+.player-box p {
+    background: rgba(0,0,0,.45);
+    padding: .5em;
+    padding-bottom: 0.25em;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+.dealer-box p {
+    color: yellow;
+}
+.cardContainer {
+    padding: .5em;
+}
+
+.game-info {
+    width: 600px;
+}
+
+#status {
+    font-size: 2rem;
+    text-align: center;
+    padding: 1rem;
+}
+
+.playing-card {
+    background: white;
+    width: 70px;
+    height: 100px;
+    display: inline-block;
+    border: 1px solid #040;
+    border-radius: 6px;
+    box-shadow: 0 0 1px black inset;
+    margin-right: -50px;
+    text-shadow: none;
+    color: black;
+    position: relative;
+    line-height: 0.8;
+    /* Squish "10" */
+    letter-spacing: -1px; 
+}
+
+.playing-card-UL {
+    position: absolute;
+    left: 2px;
+    top: 2px;
+}
+
+.playing-card-BR {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    transform: rotate(180deg);
+}
+
+.sym0 {
+    left: 13px;
+    top: 8px;
+}
+.sym1 {
+    left: 13px;
+    top: 30px;
+}
+.sym2 {
+    left: 44px;
+    top: 8px;
+}
+.sym3 {
+    left: 44px;
+    top: 30px;
+}
+.sym4 {
+    left: 29px;
+    top: 23px;
+}
+.sym5 {
+    left: 29px;
+    top: 39px;
+}
+.sym6 {
+    left: 14px;
+    bottom: 30px;
+    transform: rotate(180deg);
+}
+.sym7 {
+    left: 14px;
+    bottom: 8px;
+    transform: rotate(180deg);
+}
+.sym8 {
+    left: 45px;
+    bottom: 30px;
+    transform: rotate(180deg);
+}
+.sym9 {
+    left: 45px;
+    bottom: 8px;
+    transform: rotate(180deg);
+}
+.sym10 {
+    left: 30px;
+    bottom: 23px;
+    transform: rotate(180deg);
+}
+.sym11 {
+    left: 13px;
+    top: 39px;
+}
+.sym12 {
+    left: 44px;
+    top: 39px;
+}
+.sym13 {
+    left: 29px;
+    top: 20px;
+}
+.sym14 {
+    left: 29px;
+    bottom: 20px;
+    transform: rotate(180deg);
+}
+
+.playing-card.card-suit-0 {
+    color: red;
+}
+.playing-card.card-suit-1 {
+    color: red;
+}
+.playing-card.card-suit-3 {
+    color: black;
+}
+.playing-card.card-suit-4 {
+    color: black;
+}
+.card-symbol {
+    position: absolute;
+    font-size: 1.45em;
+}
+.playing-card.card-down {
+    background: url("../images/cardback.png");
+}
+.card-down .playing-card-UL {
+    display: none;
+}
+.card-down .playing-card-BR {
+    display: none;
+}
+.card-down .card-symbol {
+    display: none;
+}
+/* .card-suit-0 .card-symbol::before {
+    content: "♥";
+}
+.card-suit-1 .card-symbol::before {
+    content: "♦";
+}
+.card-suit-3 .card-symbol::before {
+    content: "♠";
+}
+.card-suit-4 .card-symbol::before {
+    content: "♣";
+} */
