@@ -420,6 +420,9 @@ RpbGameLogic.prototype.player_getAllowedBet = function player_getMinimumBet() {
 RpbGameLogic.prototype.state = RpbGameLogic.states.none; // default value
 RpbGameLogic.prototype.initialized = false;
 RpbGameLogic.prototype.init = function init() {
+    if(this.initialized) return;
+    this.initialized = true;
+
     // Lazy initialization
     if (!this.comm) throw Error("RpbGameLogic.comm must be set prior to using the object.");
 
@@ -428,7 +431,6 @@ RpbGameLogic.prototype.init = function init() {
     this.comm.actionHandlers.push(this.actionHandlers);
     this.comm.requestHandlers.push(this.requestHandlers);
 
-    this.initialized = true;
 };
 /** Prepares a hand be re-initializing player hand data. Bets may be made. No cards will be dealt until
  * dealHand is called.
