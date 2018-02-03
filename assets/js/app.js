@@ -81,7 +81,7 @@ function forEachIn(obj, callback, _this) {
 function RpbComm() {
     this.isHosting = false;
     this.myUserKey = null;
-    this.myName = "stefan";
+    this.myName = this.generateRandomName(); //"stefan";
 
     /** An object containing handlers for requests. Property names correspond to message strings. */
     this.requestHandlers = [];
@@ -117,26 +117,6 @@ function RpbComm() {
         waitingListChanged: "waitingListChanged",
     };
 
-    this.randomUserAdjectives = [
-        "contemplative", "questionable", "unsavory", "unpredictable", "charming",
-        "offsensive", "articulate", "conniving", "plotting", "inscrutable", "mysterious",
-        "intimidating", "laughable", "boastful", "arrogant", "mean-spirited", "amenable",
-        "hilariouis", "boring", "lifeless", "furious", "confused", "agitated", "jumpy",
-        "fussy", "hesitant", "anxious", "volatile", "timid", "confident", "dashing",
-        "gallant", "spunky", "virile", "immature", "cultured", "clairvoyant", "perveptive",
-        "thoughtful", "worldy", "insightful", "eccentric", "bizarre", "whimsical", "mischievous",
-    ];
-    this.randomUserNouns = [
-        "interloper", "animal", "baby", "charlatan", "communist", "dreamr", "deadbeat", "devil",
-        "drifter", "delinquent", "bro", "failure", "friend", "follower", "freak", "genius",
-        "goofball", "grandmother", "grump", "heathen", "hero", "high-roller", "hipster", 
-        "hypocrate", "politician", "invalid", "jerk", "lawyer", "leader", "liar",
-        "loudmouth", "lover", "mastermind", "maker", "menace", "misfit", "nobody", 
-        "pacifist", "party pooper", "patriot", "pessimist", "pioneer", "player", "professional",
-        "phychic", "punk", "saint", "show-off", "skeptic", "spectator", "star", "sucker",
-        "sweetheart", "theif", "tormentor", "traitor", "traveler", "president", "user",
-        "vinicator", "avenger", "weasel", "wizard", "protector", "humanitarian",
-    ];
     this.getThisPlayer = function getThisPlayer() {
         return this.cached.players[this.myUserKey];
     };
@@ -196,9 +176,8 @@ function RpbComm() {
     this.joinExistingGame = function () {
         this.isHosting = false;
         //this.myName = prompt("enter a name. also, replace this with something competent, you turd."); // todo: move from game to comm
-        this.myName = 
-            this.randomUserAdjectives[Math.floor(Math.random() * this.randomUserAdjectives.length)] + " " + 
-            this.randomUserNouns[Math.floor(Math.random() * this.randomUserNouns.length)];
+        this.myName = this.generateRandomName();
+            
         var node = this.nodes.waitingPlayers.push({
             name: this.myName,
             balance: 1000,
@@ -288,28 +267,30 @@ function RpbComm() {
     };
     this.ondb_requests_value = function (snapshot) {
         var val = snapshot.val();
+        if(!val) return;
+
         console.log("REQUEST + ", val);
         var self = this;
         var requestList;
 
         //this.comm.cached.requests = snapshot.val();
         if (this.isHosting && val) {
-            console.log("Initiate transaction for ", snapshot.val());
+            // console.log("Initiate transaction for ", snapshot.val());
             // Use a transaction to retreive requests then delete them
             this.nodes.requests.transaction(function (req) {
-                console.log("Enter transaction for ", req);
+                // console.log("Enter transaction for ", req);
                 if (!req) {
-                    console.log("Abort transaction for", req);
+                    // console.log("Abort transaction for", req);
                     return undefined;
                 }
 
                 requestList = req || requestList;
-                console.log("requestList = ", req)
-                console.log("Set to null for ", req)
+                // console.log("requestList = ", req)
+                // console.log("Set to null for ", req)
                 return null;
             })
                 .then(function () {
-                    console.log("Final request list: ", requestList)
+                    console.log("REQUEST FINAL ", requestList)
                     self.processRequests.bind(self)(requestList);
                 });
         }
@@ -339,6 +320,33 @@ function RpbComm() {
         this.cached.bets = snapshot.val();
     };
 
+}
+{
+    RpbComm.prototype.generateRandomName = function (){
+        return this.randomUserAdjectives[Math.floor(Math.random() * this.randomUserAdjectives.length)] + " " + 
+               this.randomUserNouns[Math.floor(Math.random() * this.randomUserNouns.length)];
+    }
+    
+    RpbComm.prototype.randomUserAdjectives = [
+        "contemplative", "questionable", "unsavory", "unpredictable", "charming",
+        "offsensive", "articulate", "conniving", "plotting", "inscrutable", "mysterious",
+        "intimidating", "laughable", "boastful", "arrogant", "mean-spirited", "amenable",
+        "hilariouis", "boring", "lifeless", "furious", "confused", "agitated", "jumpy",
+        "fussy", "hesitant", "anxious", "volatile", "timid", "confident", "dashing",
+        "gallant", "spunky", "virile", "immature", "cultured", "clairvoyant", "perceptive",
+        "thoughtful", "worldy", "insightful", "eccentric", "bizarre", "whimsical", "mischievous",
+    ];
+    RpbComm.prototype.randomUserNouns = [
+        "interloper", "animal", "baby", "charlatan", "communist", "dreamer", "deadbeat", "devil",
+        "drifter", "delinquent", "bro", "failure", "friend", "follower", "freak", "genius",
+        "goofball", "grandmother", "grump", "heathen", "hero", "high-roller", "hipster", 
+        "hypocrate", "politician", "invalid", "jerk", "lawyer", "leader", "liar",
+        "loudmouth", "lover", "mastermind", "maker", "menace", "misfit", "nobody", 
+        "pacifist", "party pooper", "patriot", "pessimist", "pioneer", "player", "professional",
+        "phychic", "punk", "saint", "show-off", "skeptic", "spectator", "star", "sucker",
+        "sweetheart", "theif", "tormentor", "traitor", "traveler", "president", "user",
+        "vinicator", "avenger", "weasel", "wizard", "protector", "humanitarian",
+    ];
 }
 
 
