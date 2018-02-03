@@ -116,6 +116,27 @@ function RpbComm() {
         hostSet: "hostSet",
         waitingListChanged: "waitingListChanged",
     };
+
+    this.randomUserAdjectives = [
+        "contemplative", "questionable", "unsavory", "unpredictable", "charming",
+        "offsensive", "articulate", "conniving", "plotting", "inscrutable", "mysterious",
+        "intimidating", "laughable", "boastful", "arrogant", "mean-spirited", "amenable",
+        "hilariouis", "boring", "lifeless", "furious", "confused", "agitated", "jumpy",
+        "fussy", "hesitant", "anxious", "volatile", "timid", "confident", "dashing",
+        "gallant", "spunky", "virile", "immature", "cultured", "clairvoyant", "perveptive",
+        "thoughtful", "worldy", "insightful", "eccentric", "bizarre", "whimsical", "mischievous",
+    ];
+    this.randomUserNouns = [
+        "interloper", "animal", "baby", "charlatan", "communist", "dreamr", "deadbeat", "devil",
+        "drifter", "delinquent", "bro", "failure", "friend", "follower", "freak", "genius",
+        "goofball", "grandmother", "grump", "heathen", "hero", "high-roller", "hipster", 
+        "hypocrate", "politician", "invalid", "jerk", "lawyer", "leader", "liar",
+        "loudmouth", "lover", "mastermind", "maker", "menace", "misfit", "nobody", 
+        "pacifist", "party pooper", "patriot", "pessimist", "pioneer", "player", "professional",
+        "phychic", "punk", "saint", "show-off", "skeptic", "spectator", "star", "sucker",
+        "sweetheart", "theif", "tormentor", "traitor", "traveler", "president", "user",
+        "vinicator", "avenger", "weasel", "wizard", "protector", "humanitarian",
+    ];
     this.getThisPlayer = function getThisPlayer() {
         return this.cached.players[this.myUserKey];
     };
@@ -174,7 +195,10 @@ function RpbComm() {
 
     this.joinExistingGame = function () {
         this.isHosting = false;
-        this.myName = prompt("enter a name. also, replace this with something competent, you turd."); // todo: move from game to comm
+        //this.myName = prompt("enter a name. also, replace this with something competent, you turd."); // todo: move from game to comm
+        this.myName = 
+            this.randomUserAdjectives[Math.floor(Math.random() * this.randomUserAdjectives.length)] + " " + 
+            this.randomUserNouns[Math.floor(Math.random() * this.randomUserNouns.length)];
         var node = this.nodes.waitingPlayers.push({
             name: this.myName,
             balance: 1000,
@@ -217,7 +241,12 @@ function RpbComm() {
     /** Sends a message to clients informing them that a game action has occurred */
     this.dispatchAction = function (msgString, msgArgObjcet) {
         var msg = { action: msgString };
-        if (msgArgObjcet) msg.args = msgArgObjcet;
+        if (msgArgObjcet) {
+            msg.args = msgArgObjcet;
+        } else {
+            msg.args = {};
+        }
+        msg.args.source = this.myUserKey;
         this.nodes.actions.push(msg);
     };
 
@@ -729,7 +758,7 @@ function CardDeck(shuffled, numDecks) {
 
     /** Shuffles cards */
     this.shuffle = function () {
-        // re-insert returned cards
+        // re-insert returned
         Array.prototype.push.apply(this.cards, this.returnedCards);
         this.returnedCards.length = 0;
 
@@ -822,26 +851,7 @@ $(document).ready(function () {
         game: new RpbGameLogic(),
 
 
-        randomUserAdjectives: [
-            "contemplative", "questionable", "unsavory", "unpredictable", "charming",
-            "offsensive", "articulate", "conniving", "plotting", "inscrutable", "mysterious",
-            "intimidating", "laughable", "boastful", "arrogant", "mean-spirited", "amenable",
-            "hilariouis", "boring", "lifeless", "furious", "confused", "agitated", "jumpy",
-            "fussy", "hesitant", "anxious", "volatile", "timid", "confident", "dashing",
-            "gallant", "spunky", "virile", "immature", "cultured", "clairvoyant", "perveptive",
-            "thoughtful", "worldy", "insightful", "eccentric", "bizarre", "whimsical", "mischievous",
-        ],
-        randomUserNouns: [
-            "interloper", "animal", "baby", "charlatan", "communist", "dreamr", "deadbeat", "devil",
-            "drifter", "delinquent", "bro", "failure", "friend", "follower", "freak", "genius",
-            "goofball", "grandmother", "grump", "heathen", "hero", "high-roller", "hipster", 
-            "hypocrate", "politician", "invalid", "jerk", "lawyer", "leader", "liar",
-            "loudmouth", "lover", "mastermind", "maker", "menace", "misfit", "nobody", 
-            "pacifist", "party pooper", "patriot", "pessimist", "pioneer", "player", "professional",
-            "phychic", "punk", "saint", "show-off", "skeptic", "spectator", "star", "sucker",
-            "sweetheart", "theif", "tormentor", "traitor", "traveler", "president", "user",
-            "vinicator", "avenger", "weasel", "wizard", "protector", "humanitarian",
-        ],
+
 
         messages: {
             startGame: "startGame",
