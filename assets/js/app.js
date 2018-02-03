@@ -298,7 +298,7 @@ function RpbComm() {
         console.log("REQUEST + ", snapshot.val());
         this.cached.requests = snapshot.val();
         var requestObj = snapshot.val();
-        this.processAction(requestObj.action, requestObj.args);
+        this.processRequest(requestObj.action, requestObj.args);
     };
 
     this.processRequests = function processRequests(reqObject) {
