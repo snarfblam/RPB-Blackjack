@@ -138,7 +138,7 @@ function RpbComm() {
 
                 self.nodes.host.on("value", self.ondb_host_value.bind(self));
                 self.nodes.players.on("value", self.ondb_players_value.bind(self));
-                self.nodes.requests.on("value", self.ondb_requests_value.bind(self));
+                self.nodes.requests.on("child_added", self.ondb_requests_childAdded.bind(self));
                 self.nodes.waitingPlayers.on("value", self.ondb_waitingPlayers_value.bind(self));
                 self.nodes.actions.on("child_added", self.ondb_actions_childAdded.bind(self));
                 self.nodes.bets.on("value", self.ondb_bets_value.bind(self));
@@ -177,7 +177,7 @@ function RpbComm() {
         this.isHosting = false;
         //this.myName = prompt("enter a name. also, replace this with something competent, you turd."); // todo: move from game to comm
         this.myName = this.generateRandomName();
-            
+
         var node = this.nodes.waitingPlayers.push({
             name: this.myName,
             balance: 1000,
@@ -265,35 +265,40 @@ function RpbComm() {
         this.cached.players = snapshot.val() || {};
         this.raiseEvent(this.events.playerListChanged);
     };
-    this.ondb_requests_value = function (snapshot) {
-        var val = snapshot.val();
-        if(!val) return;
+    this.ondb_requests_childAdded = function (snapshot) {
+        // var val = snapshot.val();
+        // if(!val) return;
 
-        console.log("REQUEST + ", val);
-        var self = this;
-        var requestList;
+        // console.log("REQUEST + ", val);
+        // var self = this;
+        // var requestList;
 
-        //this.comm.cached.requests = snapshot.val();
-        if (this.isHosting && val) {
-            // console.log("Initiate transaction for ", snapshot.val());
-            // Use a transaction to retreive requests then delete them
-            this.nodes.requests.transaction(function (req) {
-                // console.log("Enter transaction for ", req);
-                if (!req) {
-                    // console.log("Abort transaction for", req);
-                    return undefined;
-                }
+        // //this.comm.cached.requests = snapshot.val();
+        // if (this.isHosting && val) {
+        //     // console.log("Initiate transaction for ", snapshot.val());
+        //     // Use a transaction to retreive requests then delete them
+        //     this.nodes.requests.transaction(function (req) {
+        //         // console.log("Enter transaction for ", req);
+        //         if (!req) {
+        //             // console.log("Abort transaction for", req);
+        //             return undefined;
+        //         }
 
-                requestList = req || requestList;
-                // console.log("requestList = ", req)
-                // console.log("Set to null for ", req)
-                return null;
-            })
-                .then(function () {
-                    console.log("REQUEST FINAL ", requestList)
-                    self.processRequests.bind(self)(requestList);
-                });
-        }
+        //         requestList = req || requestList;
+        //         // console.log("requestList = ", req)
+        //         // console.log("Set to null for ", req)
+        //         return null;
+        //     })
+        //         .then(function () {
+        //             console.log("REQUEST FINAL ", requestList)
+        //             self.processRequests.bind(self)(requestList);
+        //         });
+        // }
+
+        console.log("REQUEST + ", snapshot.val());
+        this.cached.requests = snapshot.val();
+        var requestObj = snapshot.val();
+        this.processAction(requestObj.action, requestObj.args);
     };
 
     this.processRequests = function processRequests(reqObject) {
@@ -322,11 +327,11 @@ function RpbComm() {
 
 }
 {
-    RpbComm.prototype.generateRandomName = function (){
-        return this.randomUserAdjectives[Math.floor(Math.random() * this.randomUserAdjectives.length)] + " " + 
-               this.randomUserNouns[Math.floor(Math.random() * this.randomUserNouns.length)];
+    RpbComm.prototype.generateRandomName = function () {
+        return this.randomUserAdjectives[Math.floor(Math.random() * this.randomUserAdjectives.length)] + " " +
+            this.randomUserNouns[Math.floor(Math.random() * this.randomUserNouns.length)];
     }
-    
+
     RpbComm.prototype.randomUserAdjectives = [
         "contemplative", "questionable", "unsavory", "unpredictable", "charming",
         "offsensive", "articulate", "conniving", "plotting", "inscrutable", "mysterious",
@@ -339,9 +344,9 @@ function RpbComm() {
     RpbComm.prototype.randomUserNouns = [
         "interloper", "animal", "baby", "charlatan", "communist", "dreamer", "deadbeat", "devil",
         "drifter", "delinquent", "bro", "failure", "friend", "follower", "freak", "genius",
-        "goofball", "grandmother", "grump", "heathen", "hero", "high-roller", "hipster", 
+        "goofball", "grandmother", "grump", "heathen", "hero", "high-roller", "hipster",
         "hypocrate", "politician", "invalid", "jerk", "lawyer", "leader", "liar",
-        "loudmouth", "lover", "mastermind", "maker", "menace", "misfit", "nobody", 
+        "loudmouth", "lover", "mastermind", "maker", "menace", "misfit", "nobody",
         "pacifist", "party pooper", "patriot", "pessimist", "pioneer", "player", "professional",
         "phychic", "punk", "saint", "show-off", "skeptic", "spectator", "star", "sucker",
         "sweetheart", "theif", "tormentor", "traitor", "traveler", "president", "user",
@@ -420,7 +425,7 @@ RpbGameLogic.prototype.player_getAllowedBet = function player_getMinimumBet() {
 RpbGameLogic.prototype.state = RpbGameLogic.states.none; // default value
 RpbGameLogic.prototype.initialized = false;
 RpbGameLogic.prototype.init = function init() {
-    if(this.initialized) return;
+    if (this.initialized) return;
     this.initialized = true;
 
     // Lazy initialization
@@ -932,9 +937,9 @@ $(document).ready(function () {
 
             this.ui.chatButton.on("click", this.on_chatButton_click.bind(this));
         },
-        AddChatMessage: function(user, text) {
+        AddChatMessage: function (user, text) {
             var newText = $("<p>");
-            if(user) newText.append($("<strong>").text(user + ": "));
+            if (user) newText.append($("<strong>").text(user + ": "));
             newText.append($("<span>").text(text));
             this.ui.chatBox.append(newText);
             this.ui.chatBox.scrollTop(this.ui.chatBox[0].scrollHeight);
