@@ -327,6 +327,19 @@ function RpbComm() {
 
 }
 {
+    RpbComm.delay = function (timeout) {
+        var def = $.Deferred();
+        setTimeout(function () { def.resolve(); }, timeout);
+        return def.promise();
+    }
+    RpbComm.timedPromise = function(promise, timeout) {
+        var def = $.Deferred();
+        setTimeout(function () { def.reject(); }, timeout);
+        promise.then(function(result) {
+            def.resolve();
+        });
+        return def.promise();
+    }
     RpbComm.prototype.generateRandomName = function () {
         return this.randomUserAdjectives[Math.floor(Math.random() * this.randomUserAdjectives.length)] + " " +
             this.randomUserNouns[Math.floor(Math.random() * this.randomUserNouns.length)];
@@ -859,6 +872,7 @@ $(document).ready(function () {
     $(window).resize(function () {
         var containerHeight = $("#chat-container").height();
         $("#chat-container-placeholder").height(containerHeight);
+        $("#chat-input").height($("#chat-button").height() + 2);
     });
 
     var rpbGame = {
@@ -936,6 +950,9 @@ $(document).ready(function () {
             this.ui.playerStand.on("click", this.on_playerStand_click.bind(this));
 
             this.ui.chatButton.on("click", this.on_chatButton_click.bind(this));
+
+            $("#chat-input").height($("#chat-button").height() + 2);
+
         },
         AddChatMessage: function (user, text) {
             var newText = $("<p>");
