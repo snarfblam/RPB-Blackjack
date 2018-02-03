@@ -5,7 +5,7 @@
         -requestAction - (action)s - sent from players to host 
         -players - (player info)s - playing current round
         -waitingPlayers - (player info)s - waiting to join next round
-        -bets - (numbers) - player bets (named after player ID)
+        -chat - (string)s - chat output
         
 
 (action)
@@ -19,6 +19,7 @@
 (card) - 
     rank (number) - rank
     suit (number: 0 to 3) - suit
+    [down] (any) - if set and truthy, card is dealt face-down
 
 Messages:
     startGame {} - (action) Begins a round
@@ -31,7 +32,7 @@ Messages:
         cards: (card)[]
     }
     playerUp { - (action) It's a player's turn
-        user: PlayerID
+        user: PlayerID or "dealer"
     }
     hit { - (request->action / action) - player requesting his or dealer hit
         user: PlayerID or "dealer"
@@ -62,4 +63,8 @@ Messages:
             "push" - player tied dealer
             "bust" - player bust
             "dealerBust" - dealer bust
+    }
+    chat { - (request) - send chat message
+        user: PlayerID
+        text: user's message
     }

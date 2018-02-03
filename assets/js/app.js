@@ -182,6 +182,13 @@ function RpbComm() {
         this.myUserKey = node.key;
     };
 
+    this.setChatMessage = function (userID, text) {
+        this.nodes.chat.push({
+            user: userID,
+            text: text,
+        });
+    };
+
     this.beginHostPing = function () {
         setInterval(ping.bind(this), 10000);
 
@@ -805,12 +812,17 @@ CardDeck.getHandTotal = function getDeckTotal(cards) {
 
 
 $(document).ready(function () {
+    $(window).resize(function () {
+        var containerHeight = $("#chat-container").height();
+        $("#chat-container-placeholder").height(containerHeight);
+    });
 
     var rpbGame = {
         comm: new RpbComm(),
         game: new RpbGameLogic(),
         messages: {
             startGame: "startGame",
+            chat: "chat",
         },
 
         ui: {
@@ -824,6 +836,9 @@ $(document).ready(function () {
             status: $("#status"),
             playerHit: $("#player-hit"),
             playerStand: $("#player-stand"),
+            chatButton: $("#chat-button"),
+            chatInput: $("#chat-input"),
+            chatBox: $("#chat-box"),
         },
 
         /** List of symbol-position-lists to be used on each card */
@@ -871,6 +886,8 @@ $(document).ready(function () {
             this.ui.placeBet.on("click", this.on_placeBet_click.bind(this));
             this.ui.playerHit.on("click", this.on_playerHit_click.bind(this));
             this.ui.playerStand.on("click", this.on_playerStand_click.bind(this));
+
+            this.ui.chatButton.on("click", this.on_chatButton_click.bind(this));
         },
 
         getThisPlayer: function () {
@@ -938,8 +955,8 @@ $(document).ready(function () {
             $(".card-down").removeClass("card-down");
         },
 
-        getPlayerDiv: function(user) {
-            if(user == "dealer") return $("#dealer");
+        getPlayerDiv: function (user) {
+            if (user == "dealer") return $("#dealer");
             return $("#" + user);
         },
 
@@ -947,8 +964,15 @@ $(document).ready(function () {
         /** Sends a message to all clients, including the sender */
         requestHandlers: {
             startGame: function (args) {
-                this.comm.startRound(this.messages.startGame);
+                if (this.comm.isHosting) {
+                    this.comm.startRound(this.messages.startGame);
+                }
             },
+            chat: function (args) {
+                if (this.comm.isHosting) {
+                    this.comm.dispatchAction(this.messages.chat, args);
+                }
+            }
         },
 
         actionHandlers: {
@@ -980,7 +1004,19 @@ $(document).ready(function () {
                     this.game.host_beginHand();
                 }
             },
-            placeBet: function(args) {
+            chat: function (args) {
+                var user = this.comm.cached.players[args.user];
+                if (!user) user = this.comm.cached.waitingPlayers[args.user];
+                var userName = user.name;
+                if (userName) {
+                    var newText = $("<p>");
+                    newText.append($("<strong>").text(userName + ": "));
+                    newText.append($("<span>").text(args.text));
+                    this.ui.chatBox.append(newText);
+                    this.ui.chatBox.scrollTop(this.ui.chatBox[0].scrollHeight);
+                }
+            },
+            placeBet: function (args) {
                 this.getPlayerDiv(args.user).find(".player-bet").text("Bet: $" + args.bet);
             },
             dealCard: function onDealCard(args) {
@@ -1111,7 +1147,15 @@ $(document).ready(function () {
                 });
         },
 
-
+        on_chatButton_click: function (e) {
+            e.preventDefault();
+            var text = this.ui.chatInput.val();
+            this.ui.chatInput.val("");
+            this.comm.dispatchRequest(this.messages.chat, {
+                user: this.comm.myUserKey,
+                text: text,
+            });
+        },
 
         updateHostDisplay: function () {
             var hostInfo = this.comm.cached.players[this.comm.cached.host];

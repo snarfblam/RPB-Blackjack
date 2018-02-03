@@ -30,6 +30,10 @@ em {
     font-style: italic;
 }
 
+strong {
+    font-weight: bold;
+}
+
 hr {
     height: 1px;
     margin: 0 auto;
@@ -262,3 +266,34 @@ hr {
 .card-suit-4 .card-symbol::before {
     content: "♣";
 } */
+
+
+
+#chat-container {
+    position: absolute;
+    bottom: 0px;
+    width: 100%;
+    font-family: sans-serif;
+}
+#chat-box {
+    background: white;
+    color: black;
+    text-shadow: none;
+    width: 100%;
+    height: 12em;
+    overflow: scroll;
+}
+#chat-box p {
+    white-space: nowrap;
+    overflow: hidden;
+    line-height: 1.2;
+    background: #EEE;
+    border-bottom: 1px solid #CCC;
+}
+#chat-container input {
+    width: calc(100% - 100px);
+}
+#chat-container button {
+    width: 90px;
+    float:right;
+}

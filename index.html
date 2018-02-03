@@ -26,13 +26,20 @@
 
     <div id="player-container"></div>
     <button id="start-game">Start game</button>
-    <input type="number" min="1" id="my-bet">
+    <input type="number" min="1" id="my-bet" value="10">
     <button id="place-bet">place bet</button>
     <button id="player-hit">hit</button>
     <button id="player-stand">stand</button>
-    <div class="playing-card"></div>
-    <div class="playing-card"></div>
-
+    <div id="chat-container-placeholder"></div>
+    <div id="chat-container">
+        <div id="chat-box">
+            <p>Welcome to Rock, Paper, Blackjack!</p>
+        </div>
+        <form>
+            <input type=text id="chat-input"><!-- whitespace :/
+            --><button id="chat-button" type="submit">Enter</button>
+        </form>
+    </div>
     <script src="https://www.gstatic.com/firebasejs/4.9.0/firebase.js"></script>
     <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
         crossorigin="anonymous"></script>
