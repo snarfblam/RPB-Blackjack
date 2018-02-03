@@ -653,7 +653,7 @@ RpbGameLogic.prototype.host_moveToNextPlayer = function (message) {
 };
 RpbGameLogic.prototype.host_performDealerTurn = function () {
     var self = this;
-
+    var delay = 500; // milliseconds between cards
     this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: "dealer" });
 
     // Dealer only needs to play if there are players left who have not bust and don't have blackjack
@@ -663,22 +663,41 @@ RpbGameLogic.prototype.host_performDealerTurn = function () {
         var cardCount = hand.length;
         var handTotal = CardDeck.getHandTotal(hand);
 
-        if(handTotal < 21 || cardCount > 2) dealerPlay = true; 
+        if(handTotal == 21 && cardCount > 2) dealerPlay = true;  // not blackjack
+        if(handTotal < 21) dealerPlay = true; // no bust
     });
 
     var dealerTotal = CardDeck.getHandTotal(this.dealerHand);
-    while (dealerPlay && dealerTotal < 17) {
-        var newCard = this.deck.getCard();
-        this.dealerHand.push(newCard);
-        this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
-            user: "dealer",
-            cards: [this.toSimpleCard(newCard)]
-        });
+    // while (dealerPlay && dealerTotal < 17) {
+    //     var newCard = this.deck.getCard();
+    //     this.dealerHand.push(newCard);
+    //     this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
+    //         user: "dealer",
+    //         cards: [this.toSimpleCard(newCard)]
+    //     });
 
-        dealerTotal = CardDeck.getHandTotal(this.dealerHand);
+    //     dealerTotal = CardDeck.getHandTotal(this.dealerHand);
+    // }
+
+    // this.host_concludeRound();
+    setTimeout(doNextCard, delay);
+
+    function doNextCard() {
+        if(dealerPlay && dealerTotal < 17) {
+            var newCard = self.deck.getCard();
+            self.dealerHand.push(newCard);
+            self.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
+                user: "dealer",
+                cards: [self.toSimpleCard(newCard)]
+            });
+    
+            dealerTotal = CardDeck.getHandTotal(self.dealerHand);
+
+            setTimeout(doNextCard, delay);
+        }else {
+            self.host_concludeRound();
+        }
     }
-
-    this.host_concludeRound();
 };
 RpbGameLogic.prototype.host_concludeRound = function () {
     var dealerValue = CardDeck.getHandTotal(this.dealerHand);
