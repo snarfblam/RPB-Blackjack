@@ -22,7 +22,9 @@
     [down] (any) - if set and truthy, card is dealt face-down
 
 Messages:
-    startGame {} - (action) Begins a round
+    startGame {} - (action) Begins a round - ready for betting
+    startDeal {} - (action) Betting is done, round is dealed.
+    endGame {} - (action) A round has concluded.
     placeBet { - (request->action) Places user's bet
         user: PlayerID,
         bet: bet value

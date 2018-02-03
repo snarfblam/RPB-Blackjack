@@ -121,6 +121,8 @@ function RpbComm() {
         return this.cached.players[this.myUserKey];
     };
 
+
+    /** Returns a promise that resolves when connected. */
     this.connect = function () {
         var self = this;
 
@@ -128,7 +130,7 @@ function RpbComm() {
         // If there is no host, we're becoming the host.
         // Else, we're joining as a spectator, at which point we can ask to join the next round
 
-        this.nodes.host.once("value")
+        return this.nodes.host.once("value")
             .then(function (snapshot) {
                 if (snapshot.val()) {
                     self.joinExistingGame();
@@ -332,10 +334,10 @@ function RpbComm() {
         setTimeout(function () { def.resolve(); }, timeout);
         return def.promise();
     }
-    RpbComm.timedPromise = function(promise, timeout) {
+    RpbComm.timedPromise = function (promise, timeout) {
         var def = $.Deferred();
         setTimeout(function () { def.reject(); }, timeout);
-        promise.then(function(result) {
+        promise.then(function (result) {
             def.resolve();
         });
         return def.promise();
@@ -404,6 +406,8 @@ RpbGameLogic.states = {
     awaitingPlayers: "awaitingPlayers",
 };
 RpbGameLogic.messages = {
+    startDeal: "startDeal",
+    endGame: "endGame",
     placeBet: "placeBet",
     dealCard: "dealCard",
     playerUp: "playerUp",
@@ -506,6 +510,8 @@ RpbGameLogic.prototype.host_sendPlayerEvent = function host_sendPlayerEvent(user
     });
 }
 RpbGameLogic.prototype.host_initialDeal = function host_initialDeal() {
+    this.comm.dispatchAction(RpbGameLogic.messages.startDeal);
+
     // I'm dealing out of order and I don't even care
     this.dealerHand = [this.getSimpleCard(), this.getSimpleCard()];
     this.dealerHand[0].down = true; // dealer shows one card face-down
@@ -646,10 +652,22 @@ RpbGameLogic.prototype.host_moveToNextPlayer = function (message) {
     }
 };
 RpbGameLogic.prototype.host_performDealerTurn = function () {
+    var self = this;
+
     this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: "dealer" });
 
+    // Dealer only needs to play if there are players left who have not bust and don't have blackjack
+    var dealerPlay = false;
+    forEachIn(this.playerInfo, function(key, value) {
+        var hand = value.hand;
+        var cardCount = hand.length;
+        var handTotal = CardDeck.getHandTotal(hand);
+
+        if(handTotal < 21 || cardCount > 2) dealerPlay = true; 
+    });
+
     var dealerTotal = CardDeck.getHandTotal(this.dealerHand);
-    while (dealerTotal < 17) {
+    while (dealerPlay && dealerTotal < 17) {
         var newCard = this.deck.getCard();
         this.dealerHand.push(newCard);
         this.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
@@ -711,6 +729,8 @@ RpbGameLogic.prototype.host_concludeRound = function () {
 
         this.host_ChangeUserBalance(playerID, balanceChange, reason);
     }, this); // forEachIn
+
+    this.comm.dispatchAction(RpbGameLogic.messages.endGame);
 };
 RpbGameLogic.prototype.host_ChangeUserBalance = function host_ChangeUserBalance(playerID, amt, reason) {
     var user = this.comm.cached.players[playerID];
@@ -932,6 +952,7 @@ $(document).ready(function () {
                 // Todo: notify server (especially if host)
             });
 
+
             this.requestHandlers.handlerContext = this;
             this.actionHandlers.handlerContext = this;
             this.commEventHandlers.handlerContext = this;
@@ -941,8 +962,13 @@ $(document).ready(function () {
 
             this.game.comm = this.comm;
 
-
-            self.comm.connect();
+            self.comm.connect().then(function () {
+                if (self.comm.isHosting) {
+                    self.ui.startGame.show();
+                } else {
+                    self.ui.startGame.hide();
+                }
+            });
 
             this.ui.startGame.on("click", this.on_startGame_click.bind(this));
             this.ui.placeBet.on("click", this.on_placeBet_click.bind(this));
@@ -1074,6 +1100,19 @@ $(document).ready(function () {
                 if (this.comm.isHosting) {
                     this.game.host_beginHand();
                 }
+
+                this.ui.playerHit.hide();
+                this.ui.playerStand.hide();
+                this.ui.placeBet.show();
+                this.ui.myBet.show();
+            },
+            startDeal: function(args) {
+                this.ui.placeBet.hide();
+                this.ui.myBet.hide();
+            },
+            endGame: function(args) {
+                this.ui.playerHit.hide();
+                this.ui.playerStand.hide();
             },
             chat: function (args) {
                 var user = this.comm.cached.players[args.user];
@@ -1096,7 +1135,7 @@ $(document).ready(function () {
 
                 var cardContainer = userDiv.find(".cardContainer");
                 var totalCardCount = userDiv.find(".playing-card").length;
-                var firstCards = (totalCardCount == 0);
+                var addSpacer = (totalCardCount == 1); // spacer is added after second card (separate initial deal from extra cards)
                 totalCardCount += args.cards.length;
 
                 (args.cards || []).forEach(function (card) {
@@ -1104,7 +1143,7 @@ $(document).ready(function () {
                     cardContainer.append(this.createCardElement(card));
                 }, this);
 
-                if (firstCards) {
+                if (addSpacer) {
                     cardContainer.append($("<div>").addClass("card-spacer"));
                 }
 
@@ -1156,6 +1195,14 @@ $(document).ready(function () {
 
                 $(".player-up").removeClass("player-up");
                 this.getPlayerDiv(args.user).addClass("player-up");
+
+                if(args.user == this.comm.myUserKey) {
+                    this.ui.playerHit.show();
+                    this.ui.playerStand.show();
+                } else {
+                    this.ui.playerHit.hide();
+                    this.ui.playerStand.hide();
+                }
             },
             balanceChange: function onBalanceChange(args) {
                 var name = this.comm.cached.players[args.user].name;
