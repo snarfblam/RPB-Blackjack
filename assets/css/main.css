@@ -192,8 +192,18 @@ body {
     position: absolute;
     font-size: 1.45em;
 }
+.playing-card.card-jack {
+    background: white url("../images/jack.png");
+}
+.playing-card.card-queen {
+    background: white url("../images/queen.png");
+}
+.playing-card.card-king {
+    background: white url("../images/king.png");
+}
 .playing-card.card-down {
     background: url("../images/cardback.png");
+    border: 1px solid black;
 }
 .card-down .playing-card-UL {
     display: none;
