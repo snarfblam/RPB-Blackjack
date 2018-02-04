@@ -81,6 +81,9 @@ button:active {
     margin-right: auto;
 }
 
+#player-container {
+    text-align: center;
+}
 .player-box {
     border: 3px solid rgba(255, 255, 196, 0.7);
     border-radius: 8px;
@@ -308,6 +311,9 @@ button:active {
     line-height: 1.2;
     background: #EEE;
     border-bottom: 1px solid #CCC;
+}
+#chat-box p.game-message {
+    color: #888;
 }
 #chat-container input {
     width: calc(100% - 100px);

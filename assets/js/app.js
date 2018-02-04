@@ -658,13 +658,13 @@ RpbGameLogic.prototype.host_performDealerTurn = function () {
 
     // Dealer only needs to play if there are players left who have not bust and don't have blackjack
     var dealerPlay = false;
-    forEachIn(this.playerInfo, function(key, value) {
+    forEachIn(this.playerInfo, function (key, value) {
         var hand = value.hand;
         var cardCount = hand.length;
         var handTotal = CardDeck.getHandTotal(hand);
 
-        if(handTotal == 21 && cardCount > 2) dealerPlay = true;  // not blackjack
-        if(handTotal < 21) dealerPlay = true; // no bust
+        if (handTotal == 21 && cardCount > 2) dealerPlay = true;  // not blackjack
+        if (handTotal < 21) dealerPlay = true; // no bust
     });
 
     var dealerTotal = CardDeck.getHandTotal(this.dealerHand);
@@ -683,18 +683,18 @@ RpbGameLogic.prototype.host_performDealerTurn = function () {
     setTimeout(doNextCard, delay);
 
     function doNextCard() {
-        if(dealerPlay && dealerTotal < 17) {
+        if (dealerPlay && dealerTotal < 17) {
             var newCard = self.deck.getCard();
             self.dealerHand.push(newCard);
             self.comm.dispatchAction(RpbGameLogic.messages.dealCard, {
                 user: "dealer",
                 cards: [self.toSimpleCard(newCard)]
             });
-    
+
             dealerTotal = CardDeck.getHandTotal(self.dealerHand);
 
             setTimeout(doNextCard, delay);
-        }else {
+        } else {
             self.host_concludeRound();
         }
     }
@@ -926,6 +926,10 @@ $(document).ready(function () {
             chat: "chat",
         },
 
+        gameMessages: {
+            startGame: "Place your bets!",
+        },
+
         ui: {
             hostDisplay: $("#host-name"),
             waitingDisplay: $("#waiting"),
@@ -1003,6 +1007,12 @@ $(document).ready(function () {
             var newText = $("<p>");
             if (user) newText.append($("<strong>").text(user + ": "));
             newText.append($("<span>").text(text));
+            this.ui.chatBox.append(newText);
+            this.ui.chatBox.scrollTop(this.ui.chatBox[0].scrollHeight);
+        },
+        AddGameMessage: function (text) {
+            var newText = $("<p>").addClass("game-message");
+            newText.append($("<em>").text(text));
             this.ui.chatBox.append(newText);
             this.ui.chatBox.scrollTop(this.ui.chatBox[0].scrollHeight);
         },
@@ -1124,18 +1134,20 @@ $(document).ready(function () {
                 this.ui.playerStand.hide();
                 this.ui.placeBet.show();
                 this.ui.myBet.show();
+                this.AddGameMessage(this.gameMessages.startGame);
+                this.ui.status.text(this.gameMessages.startGame);
             },
-            startDeal: function(args) {
+            startDeal: function (args) {
                 this.ui.placeBet.hide();
                 this.ui.myBet.hide();
             },
-            endGame: function(args) {
+            endGame: function (args) {
                 this.ui.playerHit.hide();
                 this.ui.playerStand.hide();
             },
             chat: function (args) {
                 var user = this.comm.cached.players[args.user];
-                if (!user) user = this.comm.cached.waitingPlayers[args.user];
+                if (!user && this.comm.cached.waitingPlayers) user = this.comm.cached.waitingPlayers[args.user];
                 var userName = user.name;
                 if (userName) {
                     this.AddChatMessage(userName, args.text);
@@ -1215,7 +1227,7 @@ $(document).ready(function () {
                 $(".player-up").removeClass("player-up");
                 this.getPlayerDiv(args.user).addClass("player-up");
 
-                if(args.user == this.comm.myUserKey) {
+                if (args.user == this.comm.myUserKey) {
                     this.ui.playerHit.show();
                     this.ui.playerStand.show();
                 } else {
@@ -1226,7 +1238,35 @@ $(document).ready(function () {
             balanceChange: function onBalanceChange(args) {
                 var name = this.comm.cached.players[args.user].name;
                 var balance = this.comm.cached.players[args.user].balance;
-                this.ui.status.append($("<p>").text(name + ": " + args.amount + " -> " + balance + " (" + args.reason + ")"));
+                //this.ui.status.append($("<p>").text(name + ": " + args.amount + " -> " + balance + " (" + args.reason + ")"));
+                if (args.user == this.comm.myUserKey) {
+                    var message = null;
+                    switch (args.reason) {
+                        case "blackjack":
+                            message = ("Blackjack! You win $" + args.amount);
+                            break;
+                        case "won":
+                            message = ("You win $" + args.amount);
+                            break;
+                        case "dealerBlackjack":
+                            message = ("Dealer has blackjack! You lose $" + -(args.amount));
+                            break;
+                        case "lost":
+                            message = ("You lose $" + -(args.amount));
+                            break;
+                        case "push":
+                            message = ("Push.");
+                            break;
+                        case "bust":
+                            message = ("You bust! You lose $" + -(args.amount));
+                            break;
+                        case "dealerBust":
+                            message = ("Dealer bust! You win $" + args.amount);
+                            break;
+                    }
+                    this.AddGameMessage(message);
+                    this.ui.status.text(message);
+                }
             },
             dealerBlackjack: function (args) {
                 this.allCardsFaceUp();
