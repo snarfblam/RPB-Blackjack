@@ -102,6 +102,9 @@ button:active {
     display: inline-block;
     width: 300px;
 }
+.player-container {
+    text-align: left;
+}
 .player-box .player-box-header {
     background: rgba(0,0,0,.45);
     padding: .5em;
