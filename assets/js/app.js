@@ -1285,17 +1285,21 @@ $(document).ready(function () {
 
                 var cardContainer = userDiv.find(".cardContainer");
                 var totalCardCount = userDiv.find(".playing-card").length;
-                var addSpacer = (totalCardCount == 1); // spacer is added after second card (separate initial deal from extra cards)
-                totalCardCount += args.cards.length;
+
 
                 (args.cards || []).forEach(function (card) {
                     //cardContainer.append($("<span>").text(CardDeck.getRankName(card.rank) + CardDeck.getSuitSymbol(card.suit)));
                     cardContainer.append(this.createCardElement(card));
+                    
+                    var addSpacer = (totalCardCount == 1); // spacer is added after second card (separate initial deal from extra cards)
+                    totalCardCount++;
+
+                    if (addSpacer) {
+                        cardContainer.append($("<div>").addClass("card-spacer"));
+                    }
                 }, this);
 
-                if (addSpacer) {
-                    cardContainer.append($("<div>").addClass("card-spacer"));
-                }
+
 
                 var cardValues = cardContainer.find(".card-value");
                 var total = 0;
