@@ -13,52 +13,7 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 //@ts-ignore
 var database = firebase.database();
-var provider = new firebase.auth.GoogleAuthProvider();
 
-var userGoogleToken;
-var userData;
-// if (!firebase.auth().currentUser) {
-//     var provider = new firebase.auth.GoogleAuthProvider();
-//     firebase.auth().signInWithRedirect(provider);
-// }
-firebase.auth().getRedirectResult().then(function (result) {
-    // The signed-in user info.
-    userData = result.user;
-    if (userData) {
-        // This gives you a Google Access Token. You can use it to access the Google API.
-        userGoogleToken = result.credential.accessToken;
-    } else {
-        var provider = new firebase.auth.GoogleAuthProvider();
-        firebase.auth().signInWithRedirect(provider);
-    }
-}).catch(function (error) {
-    // Handle Errors here.
-    var errorCode = error.code;
-    var errorMessage = error.message;
-    // The email of the user's account used.
-    var email = error.email;
-    // The firebase.auth.AuthCredential type that was used.
-    var credential = error.credential;
-    // ...
-});
-// firebase.auth().signInWithPopup(provider).then(function(result) {
-//     // This gives you a Google Access Token. You can use it to access the Google API.
-//     userGoogleToken = result.credential.accessToken;
-//     // The signed-in user info.
-//     userData = result.user;
-//     // ...
-//   }).catch(function(error) {
-//     // Handle Errors here.
-//     var errorCode = error.code;
-//     var errorMessage = error.message;
-//     // The email of the user's account used.
-//     var email = error.email;
-//     // The firebase.auth.AuthCredential type that was used.
-//     var credential = error.credential;
-//     // ...
-//   });
-
-// OH GOD MY BRAIN IS MELTING IM GOING TO COME BACK TO THIS LATER ON
 
 var RpbGame;
 
