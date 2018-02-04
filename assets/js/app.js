@@ -1001,7 +1001,10 @@ $(document).ready(function () {
             this.ui.chatButton.on("click", this.on_chatButton_click.bind(this));
 
             $("#chat-input").height($("#chat-button").height() + 2);
-
+            this.ui.myBet.hide();
+            this.ui.placeBet.hide();
+            this.ui.playerHit.hide();
+            this.ui.playerStand.hide();
         },
         AddChatMessage: function (user, text) {
             var newText = $("<p>");

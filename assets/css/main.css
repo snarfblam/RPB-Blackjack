@@ -81,6 +81,16 @@ button:active {
     margin-right: auto;
 }
 
+#start-game {
+    margin: 0 auto;
+    display: block;
+}
+#action-items{
+    text-align: center;
+}
+#action-items button {
+    padding: 5px 10px;
+}
 #player-container {
     text-align: center;
 }
