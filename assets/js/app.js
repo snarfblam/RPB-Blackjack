@@ -895,7 +895,9 @@ RpbGameLogic.prototype.actionHandlers = {
             //         this.playerQueue.splice(index, 1);
             //     }
             // }
-            this.comm.startRound("startGame");
+            setTimeout(function () {
+                this.comm.startRound("startGame");
+            }, 3000);
 
         }
     }
