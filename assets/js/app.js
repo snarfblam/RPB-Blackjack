@@ -873,6 +873,7 @@ RpbGameLogic.prototype.actionHandlers = {
 
     },
     userTimeout: function (args) {
+        var self = this;
         if (this.comm.isHosting) { // if we're the host, we're to kick the player
             var user = args.user;
             var isCurrentPlayer = this.playerQueue[0] == user;
@@ -896,7 +897,7 @@ RpbGameLogic.prototype.actionHandlers = {
             //     }
             // }
             setTimeout(function () {
-                this.comm.startRound("startGame");
+                self.comm.startRound("startGame");
             }, 3000);
 
         }
