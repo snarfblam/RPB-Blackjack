@@ -204,7 +204,7 @@ function RpbComm() {
             var currentHost = this.cached.host;
 
             // in ten seconds, oust the host
-            setTimeout(function() {
+            setTimeout(function () {
                 self.nodes.players.child(currentHost).set(null);
                 self.nodes.host.set(self.myUserKey);
 
@@ -216,7 +216,7 @@ function RpbComm() {
         };
 
         /** Moves waiting players to active player list and sends the startGame message */
-        this.prepareRound = function() {
+        this.prepareRound = function () {
             var self = this;
             var promises = [];
 
@@ -640,7 +640,7 @@ RpbGameLogic.prototype.host_initialDeal = function host_initialDeal() {
 
 RpbGameLogic.prototype.host_registerBet = function (userKey, amt) {
     var playerInfo = this.playerInfo[userKey];
-    if(!playerInfo) return;
+    if (!playerInfo) return;
 
     playerInfo.bet = amt;
     playerInfo.betPlaced = true;
@@ -1219,7 +1219,10 @@ $(document).ready(function () {
                     this.ui.placeBet.val(allowedBet.min);
                 }
                 if (this.comm.isHosting) {
+                    this.ui.startGame.show();
                     this.game.host_beginHand();
+                } else {
+                    this.ui.startGame.hide();
                 }
 
                 this.ui.playerHit.hide();
@@ -1228,6 +1231,9 @@ $(document).ready(function () {
                 this.ui.myBet.show();
                 this.AddGameMessage(this.gameMessages.startGame);
                 this.ui.status.text(this.gameMessages.startGame);
+
+
+
             },
             startDeal: function (args) {
                 this.ui.placeBet.hide();
@@ -1353,7 +1359,7 @@ $(document).ready(function () {
                             message = ("You bust! You lose $" + -(args.amount));
                             break;
                         case "dealerBust":
-                            message = ("Dealer bust! You win $" + args.amount);
+                            message = ("Dealer busts! You win $" + args.amount);
                             break;
                     }
                     this.AddGameMessage(message);
@@ -1363,8 +1369,10 @@ $(document).ready(function () {
             dealerBlackjack: function (args) {
                 this.allCardsFaceUp();
             },
-            hostTimeout: function(args) {
-                this.ui.status.text("ERROR - Host has timed out.");
+            hostTimeout: function (args) {
+                this.comm.isHosting = false;
+                this.ui.status.text("ERROR - Host has timed out!");
+                this.AddGameMessage("ERROR - Host has times out!");
             }
         },
 
