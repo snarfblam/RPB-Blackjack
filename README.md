@@ -13,12 +13,12 @@ Essentially, firebase is used to implement a "communication protocol". The first
 - index.html - Main interface. Used for both host and client.
 - nuke.html - Nuclear option. Clears the database. Use this if things enter an unrecoverable state.
 - README.md - You're looking at it.
-- /**assets** - Contains everything that isn't index.html
+- /**assets** - Where I keep the good stuff
    - /**css** - css files
      - reset.css - Because not all things are created equal. Nomralizes styles between browsers.
      - main.css - CSS definitions for index.html/nuke.html
    - /**images** - UI images
-   - /**js** - All javascript files (there is only one!)
+   - /**js** - Javascript files
      - app.js - Implements all host/client, firebase, and UI logic
      - nuke.js - With the fire of 10,000 suns. (Used by nuke.html.)
 
