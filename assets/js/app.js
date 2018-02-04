@@ -1400,7 +1400,7 @@ $(document).ready(function () {
                 }
                 this.comm.isHosting = false;
                 this.ui.status.text("ERROR - Host has timed out!");
-                this.AddGameMessage("ERROR - Host has times out!");
+                this.AddGameMessage("ERROR - Host has timed out!");
             },
             userTimeout: function (args) {
                 this.AddGameMessage("ERROR - " + args.name + " has timed out!");
