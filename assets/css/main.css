@@ -102,7 +102,7 @@ button:active {
     display: inline-block;
     width: 300px;
 }
-.player-container {
+.player-box {
     text-align: left;
 }
 .player-box .player-box-header {
