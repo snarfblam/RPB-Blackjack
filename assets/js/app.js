@@ -79,254 +79,341 @@ function forEachIn(obj, callback, _this) {
 /** Managese communication with firebase
  *  @constructor */
 function RpbComm() {
-    this.isHosting = false;
-    this.myUserKey = null;
-    this.myName = this.generateRandomName(); //"stefan";
+    { // Set all methods/properties
+        this.isHosting = false;
+        this.myUserKey = null;
+        this.hostPingCount = 0; // Number of 'ping checks' since 
+        this.hostPingRate = 10000; // 10 secs - Interval of ping checker
+        this.hostPingLimit = 3; // 30 secs- length of time that will pass before we assume host has vanished
 
-    /** An object containing handlers for requests. Property names correspond to message strings. */
-    this.requestHandlers = [];
-    /** An object containing handlers for actions. Property names correspond to message strings. */
-    this.actionHandlers = [];
-    /** An object containing handlers for events. */
-    this.eventHandlers = [];
-    /** The object on whose context request and action handlers will be invoke */
-    this.handlerContext = null;
+        this.myName = this.generateRandomName(); //"stefan";
 
-    this.nodes = {
-        root: database.ref("rpb"),
-        host: database.ref("rpb/host"),
-        hostPing: database.ref("rpb/hostPing"),
-        players: database.ref("rpb/players"),
-        waitingPlayers: database.ref("rpb/requestJoin"),
-        requests: database.ref("rpb/requestAction"),
-        actions: database.ref("rpb/performAction"),
-        bets: database.ref("rpb/bets"),
-    };
+        /** An object containing handlers for requests. Property names correspond to message strings. */
+        this.requestHandlers = [];
+        /** An object containing handlers for actions. Property names correspond to message strings. */
+        this.actionHandlers = [];
+        /** An object containing handlers for events. */
+        this.eventHandlers = [];
+        /** The object on whose context request and action handlers will be invoke */
+        this.handlerContext = null;
 
-    this.cached = {
-        host: null,
-        players: {},
-        waitingPlayers: {},
-        requests: [],
-        actions: [],
-        bets: [],
-    };
-    this.events = {
-        playerListChanged: "playerListChanged",
-        hostSet: "hostSet",
-        waitingListChanged: "waitingListChanged",
-    };
-
-    this.getThisPlayer = function getThisPlayer() {
-        return this.cached.players[this.myUserKey];
-    };
-
-
-    /** Returns a promise that resolves when connected. */
-    this.connect = function () {
-        var self = this;
-
-        // First and foremost, we're checking who the host is. 
-        // If there is no host, we're becoming the host.
-        // Else, we're joining as a spectator, at which point we can ask to join the next round
-
-        return this.nodes.host.once("value")
-            .then(function (snapshot) {
-                if (snapshot.val()) {
-                    self.joinExistingGame();
-                } else {
-                    self.createNewGame();
-                }
-
-                self.nodes.host.on("value", self.ondb_host_value.bind(self));
-                self.nodes.players.on("value", self.ondb_players_value.bind(self));
-                self.nodes.requests.on("child_added", self.ondb_requests_childAdded.bind(self));
-                self.nodes.waitingPlayers.on("value", self.ondb_waitingPlayers_value.bind(self));
-                self.nodes.actions.on("child_added", self.ondb_actions_childAdded.bind(self));
-                self.nodes.bets.on("value", self.ondb_bets_value.bind(self));
-            }).catch(function (error) {
-                alert(JSON.stringify(error));
-            });
-    };
-
-    this.updatePlayer = function updatePlayer(playerID, playerData) {
-        this.nodes.players.child(playerID).set(playerData);
-    };
-
-
-    this.createNewGame = function () {
-        this.isHosting = true;
-
-        // note that the key name "host" carries no significance to the program, it was just convenient and helps identify the host when debugging 
-        this.myUserKey = "host"; // todo: move from game to comm
-        var dbData = {
-            hostPing: firebase.database.ServerValue.TIMESTAMP,
-            host: "host",
-            players: {
-                host: {
-                    name: this.myName,
-                    balance: 1000,
-                }
-            },
+        this.nodes = {
+            root: database.ref("rpb"),
+            host: database.ref("rpb/host"),
+            hostPing: database.ref("rpb/hostPing"),
+            players: database.ref("rpb/players"),
+            waitingPlayers: database.ref("rpb/requestJoin"),
+            requests: database.ref("rpb/requestAction"),
+            actions: database.ref("rpb/performAction"),
+            bets: database.ref("rpb/bets"),
         };
 
-        this.nodes.root.set(dbData);
+        this.cached = {
+            host: null,
+            players: {},
+            waitingPlayers: {},
+            requests: [],
+            actions: [],
+            bets: [],
+        };
+        this.events = {
+            playerListChanged: "playerListChanged",
+            hostSet: "hostSet",
+            waitingListChanged: "waitingListChanged",
+        };
 
-        this.beginHostPing();
-    };
+        this.getThisPlayer = function getThisPlayer() {
+            return this.cached.players[this.myUserKey];
+        };
 
-    this.joinExistingGame = function () {
-        this.isHosting = false;
-        //this.myName = prompt("enter a name. also, replace this with something competent, you turd."); // todo: move from game to comm
-        this.myName = this.generateRandomName();
 
-        var node = this.nodes.waitingPlayers.push({
-            name: this.myName,
-            balance: 1000,
-        });
-        this.myUserKey = node.key;
-    };
+        /** Returns a promise that resolves when connected. */
+        this.connect = function () {
+            var self = this;
 
-    this.setChatMessage = function (userID, text) {
-        this.nodes.chat.push({
-            user: userID,
-            text: text,
-        });
-    };
+            // First and foremost, we're checking who the host is. 
+            // If there is no host, we're becoming the host.
+            // Else, we're joining as a spectator, at which point we can ask to join the next round
 
-    this.beginHostPing = function () {
-        setInterval(ping.bind(this), 10000);
+            return this.nodes.host.once("value")
+                .then(function (snapshot) {
+                    if (snapshot.val()) {
+                        self.joinExistingGame();
+                    } else {
+                        self.createNewGame();
+                    }
 
-        function ping() {
+                    self.nodes.host.on("value", self.ondb_host_value.bind(self));
+                    self.nodes.players.on("value", self.ondb_players_value.bind(self));
+                    self.nodes.requests.on("child_added", self.ondb_requests_childAdded.bind(self));
+                    self.nodes.waitingPlayers.on("value", self.ondb_waitingPlayers_value.bind(self));
+                    self.nodes.actions.on("child_added", self.ondb_actions_childAdded.bind(self));
+                    self.nodes.bets.on("value", self.ondb_bets_value.bind(self));
+                    self.nodes.hostPing.on("value", self.ondb_hostPing_value.bind(self));
+                }).catch(function (error) {
+                    alert(JSON.stringify(error));
+                });
+        };
+
+        this.updatePlayer = function updatePlayer(playerID, playerData) {
+            this.nodes.players.child(playerID).set(playerData);
+        };
+
+
+        this.createNewGame = function () {
+            this.isHosting = true;
+
+            // note that the key name "host" carries no significance to the program, it was just convenient and helps identify the host when debugging 
+            this.myUserKey = "host"; // todo: move from game to comm
+            var dbData = {
+                hostPing: firebase.database.ServerValue.TIMESTAMP,
+                host: "host",
+                players: {
+                    host: {
+                        name: this.myName,
+                        balance: 1000,
+                    }
+                },
+            };
+
+            this.nodes.root.set(dbData);
+
+            this.beginHostPing();
+        };
+
+        this.joinExistingGame = function () {
+            this.isHosting = false;
+            //this.myName = prompt("enter a name. also, replace this with something competent, you turd."); // todo: move from game to comm
+            this.myName = this.generateRandomName();
+
+            var node = this.nodes.waitingPlayers.push({
+                name: this.myName,
+                balance: 1000,
+            });
+            this.myUserKey = node.key;
+        };
+
+        this.usurpGame = function () {
+            var self = this;
+
+            // ping immediately so nobody else steals the throne.
+            this.doHostPing();
+            // Clients to notify users
+            this.dispatchAction("hostTimeout");
+
+            var currentHost = this.cached.host;
+
+            // in ten seconds, oust the host
+            setTimeout(function() {
+                self.nodes.players.child(currentHost).set(null);
+                self.nodes.host.set(self.myUserKey);
+
+                self.isHosting = true;
+                self.beginHostPing();
+                //self.dispatchRequest("startGame");
+                self.prepareRound();
+            }, 10000);
+        };
+
+        /** Moves waiting players to active player list and sends the startGame message */
+        this.prepareRound = function() {
+            var self = this;
+            var promises = [];
+
+            // move users from waiting list to playing
+            var waitList = this.cached.waitingPlayers;
+            var waitingPromise = this.nodes.waitingPlayers.set({});
+            promises.push(waitingPromise);
+
+            forEachIn(waitList, function (key, value) {
+                var invalid = (!key || !value);
+                if (!invalid) { // if your name is "", you don't get to play. ¯\_(ツ)_/¯
+                    var newPlayerPromise = this.nodes.players.child(key).set(value);
+                    promises.push(newPlayerPromise);
+                }
+            }, this);
+
+            // Send the 'begin game' message when all users have been moved around.
+            Promise.all(promises)
+                .then(function (e) {
+                    self.dispatchRequest("startGame");;
+                });
+        };
+
+        /** Registers a host ping */
+        this.hostPonged = function (timestamp) {
+            if (!this.isHosting) {
+                this.hostPingCount = 0;
+            }
+        };
+
+        this.hostPingCheck = function () {
+            if (!this.isHosting) {
+                this.hostPingCount++;
+                if (this.hostPingCount == this.hostPingLimit) {
+                    this.usurpGame();
+                }
+            }
+        };
+
+        this.setChatMessage = function (userID, text) {
+            this.nodes.chat.push({
+                user: userID,
+                text: text,
+            });
+        };
+
+        this.beginHostPing = function () {
+            setInterval(this.doHostPing.bind(this), 10000);
+
+            // function ping() {
+            //     this.nodes.hostPing.set(firebase.database.ServerValue.TIMESTAMP);
+            //     this.nodes.hostPing.once("value").then(function (snap) { console.log(snap.val()); });
+            // }
+        };
+
+        this.doHostPing = function () {
             this.nodes.hostPing.set(firebase.database.ServerValue.TIMESTAMP);
             this.nodes.hostPing.once("value").then(function (snap) { console.log(snap.val()); });
+
+        };
+
+        /** Sends a message to the host to request a game action to occur */
+        this.dispatchRequest = function (msgString, msgArgObject) {
+            var msg = { action: msgString };
+            if (msgArgObject) msg.args = msgArgObject;
+            this.nodes.requests.push(msg);
+        };
+        this.startRound = function (msgString, msgArgObject) {
+            // var msg = { action: msgString };
+            // if (msgArgObject) msg.args = msgArgObject;
+
+            // When we start a new round, we clear out all old requests and actions
+            this.nodes.requests.set(null);
+            this.nodes.actions.set(null);
+            //this.nodes.actions.set({"0": msg});
+            this.dispatchAction(msgString, msgArgObject);
         }
-    };
+        /** Sends a message to clients informing them that a game action has occurred */
+        this.dispatchAction = function (msgString, msgArgObjcet) {
+            var msg = { action: msgString };
+            if (msgArgObjcet) {
+                msg.args = msgArgObjcet;
+            } else {
+                msg.args = {};
+            }
+            msg.args.source = this.myUserKey;
+            this.nodes.actions.push(msg);
+        };
 
-    /** Sends a message to the host to request a game action to occur */
-    this.dispatchRequest = function (msgString, msgArgObject) {
-        var msg = { action: msgString };
-        if (msgArgObject) msg.args = msgArgObject;
-        this.nodes.requests.push(msg);
-    };
-    this.startRound = function (msgString, msgArgObject) {
-        // var msg = { action: msgString };
-        // if (msgArgObject) msg.args = msgArgObject;
+        this.processRequest = function (msgString, msgArgObject) {
+            this.requestHandlers.forEach(function (handlerObject) {
+                var handlerFunc = handlerObject[msgString];
+                if (handlerFunc) handlerFunc.call(handlerObject.handlerContext || this, msgArgObject);
+            }, this);
+        };
+        this.raiseEvent = function (event, eventArgs) {
+            this.eventHandlers.forEach(function (handlerObject) {
+                var handler = handlerObject[event];
+                if (handler) handler.call(handlerObject.handlerContext, eventArgs);
+            }, this);
+        };
+        this.processAllRequests = function () {
+            while (this.cached.requests.length > 0) {
+                var msg = this.cached.requests.shift();
+                this.processRequest(msg.action, msg.args);
+            }
+        };
 
-        // When we start a new round, we clear out all old requests and actions
-        this.nodes.requests.set(null);
-        this.nodes.actions.set(null);
-        //this.nodes.actions.set({"0": msg});
-        this.dispatchAction(msgString, msgArgObject);
+        this.processAction = function (msgString, msgArgObject) {
+            this.actionHandlers.forEach(function (handlerObject) {
+                var handlerFunc = handlerObject[msgString];
+                if (handlerFunc) handlerFunc.call(handlerObject.handlerContext || this, msgArgObject);
+            }, this);
+        };
+
+        this.ondb_host_value = function (snapshot) {
+            console.log("HOST", snapshot.val());
+            this.cached.host = snapshot.val();
+            this.raiseEvent(this.events.hostSet);
+        };
+        this.ondb_players_value = function (snapshot) {
+            console.log("PLAYERS", snapshot.val());
+            this.cached.players = snapshot.val() || {};
+            this.raiseEvent(this.events.playerListChanged);
+        };
+        this.ondb_requests_childAdded = function (snapshot) {
+            // var val = snapshot.val();
+            // if(!val) return;
+
+            // console.log("REQUEST + ", val);
+            // var self = this;
+            // var requestList;
+
+            // //this.comm.cached.requests = snapshot.val();
+            // if (this.isHosting && val) {
+            //     // console.log("Initiate transaction for ", snapshot.val());
+            //     // Use a transaction to retreive requests then delete them
+            //     this.nodes.requests.transaction(function (req) {
+            //         // console.log("Enter transaction for ", req);
+            //         if (!req) {
+            //             // console.log("Abort transaction for", req);
+            //             return undefined;
+            //         }
+
+            //         requestList = req || requestList;
+            //         // console.log("requestList = ", req)
+            //         // console.log("Set to null for ", req)
+            //         return null;
+            //     })
+            //         .then(function () {
+            //             console.log("REQUEST FINAL ", requestList)
+            //             self.processRequests.bind(self)(requestList);
+            //         });
+            // }
+
+            console.log("REQUEST + ", snapshot.val());
+            this.cached.requests = snapshot.val();
+            var requestObj = snapshot.val();
+            this.processRequest(requestObj.action, requestObj.args);
+        };
+
+        this.processRequests = function processRequests(reqObject) {
+            var collection = [];
+            forEachIn(reqObject, function (key, value) {
+                collection.push(value);
+            });
+            this.cached.requests = collection;
+            this.processAllRequests();
+        };
+
+        this.ondb_waitingPlayers_value = function (snapshot) {
+            console.log("WAITING + ", snapshot.val());
+            this.cached.waitingPlayers = snapshot.val();
+            this.raiseEvent(this.events.waitingListChanged);
+        };
+
+        this.ondb_actions_childAdded = function (snapshot) {
+            console.log("ACTION + ", snapshot.val());
+            this.cached.actions = snapshot.val();
+            var actionObj = snapshot.val();
+            this.processAction(actionObj.action, actionObj.args);
+        };
+
+        this.ondb_bets_value = function (snapshot) {
+            console.log("BET + ", snapshot.val());
+            this.cached.bets = snapshot.val();
+        };
+
+        this.ondb_hostPing_value = function (snapshot) {
+            var time = snapshot.val();
+            if (time) {
+                this.hostPonged(time);
+            }
+        };
     }
-    /** Sends a message to clients informing them that a game action has occurred */
-    this.dispatchAction = function (msgString, msgArgObjcet) {
-        var msg = { action: msgString };
-        if (msgArgObjcet) {
-            msg.args = msgArgObjcet;
-        } else {
-            msg.args = {};
-        }
-        msg.args.source = this.myUserKey;
-        this.nodes.actions.push(msg);
-    };
 
-    this.processRequest = function (msgString, msgArgObject) {
-        this.requestHandlers.forEach(function (handlerObject) {
-            var handlerFunc = handlerObject[msgString];
-            if (handlerFunc) handlerFunc.call(handlerObject.handlerContext || this, msgArgObject);
-        }, this);
-    };
-    this.raiseEvent = function (event, eventArgs) {
-        this.eventHandlers.forEach(function (handlerObject) {
-            var handler = handlerObject[event];
-            if (handler) handler.call(handlerObject.handlerContext, eventArgs);
-        }, this);
-    };
-    this.processAllRequests = function () {
-        while (this.cached.requests.length > 0) {
-            var msg = this.cached.requests.shift();
-            this.processRequest(msg.action, msg.args);
-        }
-    };
-
-    this.processAction = function (msgString, msgArgObject) {
-        this.actionHandlers.forEach(function (handlerObject) {
-            var handlerFunc = handlerObject[msgString];
-            if (handlerFunc) handlerFunc.call(handlerObject.handlerContext || this, msgArgObject);
-        }, this);
-    };
-
-    this.ondb_host_value = function (snapshot) {
-        console.log("HOST", snapshot.val());
-        this.cached.host = snapshot.val();
-        this.raiseEvent(this.events.hostSet);
-    };
-    this.ondb_players_value = function (snapshot) {
-        console.log("PLAYERS", snapshot.val());
-        this.cached.players = snapshot.val() || {};
-        this.raiseEvent(this.events.playerListChanged);
-    };
-    this.ondb_requests_childAdded = function (snapshot) {
-        // var val = snapshot.val();
-        // if(!val) return;
-
-        // console.log("REQUEST + ", val);
-        // var self = this;
-        // var requestList;
-
-        // //this.comm.cached.requests = snapshot.val();
-        // if (this.isHosting && val) {
-        //     // console.log("Initiate transaction for ", snapshot.val());
-        //     // Use a transaction to retreive requests then delete them
-        //     this.nodes.requests.transaction(function (req) {
-        //         // console.log("Enter transaction for ", req);
-        //         if (!req) {
-        //             // console.log("Abort transaction for", req);
-        //             return undefined;
-        //         }
-
-        //         requestList = req || requestList;
-        //         // console.log("requestList = ", req)
-        //         // console.log("Set to null for ", req)
-        //         return null;
-        //     })
-        //         .then(function () {
-        //             console.log("REQUEST FINAL ", requestList)
-        //             self.processRequests.bind(self)(requestList);
-        //         });
-        // }
-
-        console.log("REQUEST + ", snapshot.val());
-        this.cached.requests = snapshot.val();
-        var requestObj = snapshot.val();
-        this.processRequest(requestObj.action, requestObj.args);
-    };
-
-    this.processRequests = function processRequests(reqObject) {
-        var collection = [];
-        forEachIn(reqObject, function (key, value) {
-            collection.push(value);
-        });
-        this.cached.requests = collection;
-        this.processAllRequests();
-    };
-    this.ondb_waitingPlayers_value = function (snapshot) {
-        console.log("WAITING + ", snapshot.val());
-        this.cached.waitingPlayers = snapshot.val();
-        this.raiseEvent(this.events.waitingListChanged);
-    };
-    this.ondb_actions_childAdded = function (snapshot) {
-        console.log("ACTION + ", snapshot.val());
-        this.cached.actions = snapshot.val();
-        var actionObj = snapshot.val();
-        this.processAction(actionObj.action, actionObj.args);
-    };
-    this.ondb_bets_value = function (snapshot) {
-        console.log("BET + ", snapshot.val());
-        this.cached.bets = snapshot.val();
-    };
-
+    setInterval(this.hostPingCheck.bind(this), this.hostPingRate);
 }
 {
     RpbComm.delay = function (timeout) {
@@ -553,6 +640,8 @@ RpbGameLogic.prototype.host_initialDeal = function host_initialDeal() {
 
 RpbGameLogic.prototype.host_registerBet = function (userKey, amt) {
     var playerInfo = this.playerInfo[userKey];
+    if(!playerInfo) return;
+
     playerInfo.bet = amt;
     playerInfo.betPlaced = true;
 
@@ -1274,6 +1363,9 @@ $(document).ready(function () {
             dealerBlackjack: function (args) {
                 this.allCardsFaceUp();
             },
+            hostTimeout: function(args) {
+                this.ui.status.text("ERROR - Host has timed out.");
+            }
         },
 
         commEventHandlers: {
@@ -1300,27 +1392,28 @@ $(document).ready(function () {
             this.game.player_stand();
         },
         on_startGame_click: function (e) {
-            var self = this;
-            var promises = [];
+            this.comm.prepareRound();
+            // var self = this;
+            // var promises = [];
 
-            // move users from waiting list to playing
-            var waitList = this.comm.cached.waitingPlayers;
-            var waitingPromise = this.comm.nodes.waitingPlayers.set({});
-            promises.push(waitingPromise);
+            // // move users from waiting list to playing
+            // var waitList = this.comm.cached.waitingPlayers;
+            // var waitingPromise = this.comm.nodes.waitingPlayers.set({});
+            // promises.push(waitingPromise);
 
-            forEachIn(waitList, function (key, value) {
-                var invalid = (!key || !value);
-                if (!invalid) { // if your name is "", you don't get to play. ¯\_(ツ)_/¯
-                    var newPlayerPromise = this.comm.nodes.players.child(key).set(value);
-                    promises.push(newPlayerPromise);
-                }
-            }, this);
+            // forEachIn(waitList, function (key, value) {
+            //     var invalid = (!key || !value);
+            //     if (!invalid) { // if your name is "", you don't get to play. ¯\_(ツ)_/¯
+            //         var newPlayerPromise = this.comm.nodes.players.child(key).set(value);
+            //         promises.push(newPlayerPromise);
+            //     }
+            // }, this);
 
-            // Send the 'begin game' message when all users have been moved around.
-            Promise.all(promises)
-                .then(function (e) {
-                    self.comm.dispatchRequest(self.messages.startGame);
-                });
+            // // Send the 'begin game' message when all users have been moved around.
+            // Promise.all(promises)
+            //     .then(function (e) {
+            //         self.comm.dispatchRequest(self.messages.startGame);
+            //     });
         },
 
         on_chatButton_click: function (e) {
@@ -1332,6 +1425,8 @@ $(document).ready(function () {
                 text: text,
             });
         },
+
+
 
         updateHostDisplay: function () {
             var hostInfo = this.comm.cached.players[this.comm.cached.host];
