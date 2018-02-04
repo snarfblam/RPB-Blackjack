@@ -13,6 +13,7 @@ Essentially, firebase is used to implement a "communication protocol". The first
 - index.html - Main interface. Used for both host and client.
 - nuke.html - Nuclear option. Clears the database. Use this if things enter an unrecoverable state.
 - README.md - You're looking at it.
+- dbStructure.txt - Outlines the database structure as well as the messages sent between clients
 - /**assets** - Where I keep the good stuff
    - /**css** - css files
      - reset.css - Because not all things are created equal. Nomralizes styles between browsers.

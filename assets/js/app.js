@@ -271,9 +271,11 @@ function RpbComm() {
             // var msg = { action: msgString };
             // if (msgArgObject) msg.args = msgArgObject;
 
-            // When we start a new round, we clear out all old requests and actions
+            // When we start a new round, we clear out all old requests, actions, and pings
             this.nodes.requests.set(null);
             this.nodes.actions.set(null);
+            this.nodes.userPing.set(null);
+
             //this.nodes.actions.set({"0": msg});
             this.dispatchAction(msgString, msgArgObject);
         }
@@ -482,6 +484,7 @@ RpbGameLogic.states = {
     none: "None",
     placingBets: "placingBets",
     awaitingPlayers: "awaitingPlayers",
+    done: "done",
 };
 RpbGameLogic.messages = {
     startDeal: "startDeal",
@@ -519,10 +522,11 @@ RpbGameLogic.prototype.player_getAllowedBet = function player_getMinimumBet() {
 };
 RpbGameLogic.prototype.state = RpbGameLogic.states.none; // default value
 RpbGameLogic.prototype.initialized = false;
-RpbGameLogic.prototype.init = function init() {
+RpbGameLogic.prototype.init = function init(comm) {
     if (this.initialized) return;
     this.initialized = true;
 
+    this.comm = comm || this.comm;
     // Lazy initialization
     if (!this.comm) throw Error("RpbGameLogic.comm must be set prior to using the object.");
 
@@ -538,7 +542,7 @@ RpbGameLogic.prototype.init = function init() {
 RpbGameLogic.prototype.host_beginHand = function () {
     this.deck.returnCards();
 
-    if (!this.initialized) this.init();
+    //if (!this.initialized) this.init();
     this.dealerHand = [];
     this.playerInfo = {};
 
@@ -829,6 +833,7 @@ RpbGameLogic.prototype.host_concludeRound = function () {
         this.host_ChangeUserBalance(playerID, balanceChange, reason);
     }, this); // forEachIn
 
+    this.state = RpbGameLogic.states.done;
     this.comm.dispatchAction(RpbGameLogic.messages.endGame);
 };
 RpbGameLogic.prototype.host_ChangeUserBalance = function host_ChangeUserBalance(playerID, amt, reason) {
@@ -866,11 +871,49 @@ RpbGameLogic.prototype.requestHandlers = {
                 this.host_activePlayerStand();
             }
         }
-    }
+    },
+    disconnect: function (args) {
+        if (this.comm.isHosting) {
+            var roundActive = (this.state == RpbGameLogic.states.awaitingPlayers
+                || this.state == RpbGameLogic.states.placingBets);
+            var playerActive = this.comm.cached.players.hasOwnProperty(args.user);
+
+            // remove player...
+            var players = this.comm.cached.players;
+            delete players[args.user];
+            this.comm.nodes.players.set(players);
+
+            // Restart game if we're in the middle of a round
+            if (roundActive && playerActive) {
+                this.comm.startRound("startGame");
+            }
+        }
+    },
 };
 RpbGameLogic.prototype.actionHandlers = {
     placeBet: function (args) {
 
+    },
+    disconnect: function (args) {
+        if (!this.comm.isHosting) {
+            var wasHost = args.host;
+            if (wasHost) {
+                var nominated = args.newHost == this.comm.myUserKey;
+                if (nominated) {
+                    this.comm.nodes.host.set(this.comm.myUserKey);
+
+                    // remove player...
+                    var players = this.comm.cached.players;
+                    delete players[args.user];
+                    this.comm.nodes.players.set(players);
+
+                    this.comm.isHosting = true;
+                    this.comm.beginHostPing();
+                    //this.comm.dispatchRequest("startGame");
+                    this.comm.prepareRound();
+                }
+            }
+        }
     },
     userTimeout: function (args) {
         var self = this;
@@ -1082,7 +1125,29 @@ $(document).ready(function () {
         init: function () {
             var self = this;
             $(window).on("unload", function (e) {
-                // Todo: notify server (especially if host)
+                // Note: this function does not take into account players in the wait list. It should.
+                if (self.comm.myUserKey) {
+                    var args = { user: self.comm.myUserKey, host: self.comm.isHosting, name: self.comm.myName };
+                    if (self.comm.isHosting) { // Disconnecting host will nominate a new host
+                        var players = [];
+                        forEachIn(self.comm.cached.players, function (k, v) { players.push(k) });
+
+                        if (players.length > 0) {
+                            args.newHost = players[0];
+                        }
+
+                        if (0 == players.length) {
+                            // If there is nobody else on, just wipe the db so the next person so join doesn't have to wait for timeout
+                            self.comm.nodes.root.set(null);
+                            return;
+                        } else {
+                            // Otherwise nominate a host
+                            self.comm.dispatchAction("disconnect", args);
+                        }
+                    } else {
+                        self.comm.dispatchRequest("disconnect", args);
+                    }
+                }
             });
 
 
@@ -1093,7 +1158,8 @@ $(document).ready(function () {
             this.comm.actionHandlers.push(this.actionHandlers);
             this.comm.eventHandlers.push(this.commEventHandlers);
 
-            this.game.comm = this.comm;
+            //this.game.comm = this.comm;
+            this.game.init(this.comm);
 
             self.comm.connect().then(function () {
                 if (self.comm.isHosting) {
@@ -1211,7 +1277,10 @@ $(document).ready(function () {
                 if (this.comm.isHosting) {
                     this.comm.dispatchAction(this.messages.chat, args);
                 }
-            }
+            },
+            disconnect: function (args) {
+                this.AddGameMessage(args.name + " has disconnected");
+            },
         },
 
         actionHandlers: {
@@ -1267,7 +1336,7 @@ $(document).ready(function () {
             chat: function (args) {
                 var user = this.comm.cached.players[args.user];
                 if (!user && this.comm.cached.waitingPlayers) user = this.comm.cached.waitingPlayers[args.user];
-                var userName = user.name;
+                var userName = (user) ? user.name : "unknown user";
                 if (userName) {
                     this.AddChatMessage(userName, args.text);
                 }
@@ -1290,7 +1359,7 @@ $(document).ready(function () {
                 (args.cards || []).forEach(function (card) {
                     //cardContainer.append($("<span>").text(CardDeck.getRankName(card.rank) + CardDeck.getSuitSymbol(card.suit)));
                     cardContainer.append(this.createCardElement(card));
-                    
+
                     var addSpacer = (totalCardCount == 1); // spacer is added after second card (separate initial deal from extra cards)
                     totalCardCount++;
 
@@ -1405,7 +1474,8 @@ $(document).ready(function () {
             userTimeout: function (args) {
                 this.AddGameMessage("ERROR - " + args.name + " has timed out!");
                 $("#" + args.user).find(".player-box-header").css({ color: "red" });
-            }
+            },
+
         },
 
         commEventHandlers: {
