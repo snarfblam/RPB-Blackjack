@@ -70,3 +70,9 @@ Messages:
         user: PlayerID
         text: user's message
     }
+
+    hostTimeout { - (action) - notifies all users the host has timed out
+
+    }
+    userTimeout { - (action) - notifies all users a user has timed out. if it is users turn, next player goes. timed out user is removed from userlist.
+    }

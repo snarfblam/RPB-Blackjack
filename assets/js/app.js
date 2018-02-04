@@ -106,6 +106,7 @@ function RpbComm() {
             requests: database.ref("rpb/requestAction"),
             actions: database.ref("rpb/performAction"),
             bets: database.ref("rpb/bets"),
+            userPing: database.ref("rpb/userPing"),
         };
 
         this.cached = {
@@ -116,6 +117,8 @@ function RpbComm() {
             actions: [],
             bets: [],
         };
+        /** Holds the number of successive pings a user has failed to respond to */
+        this.userPings = {};
         this.events = {
             playerListChanged: "playerListChanged",
             hostSet: "hostSet",
@@ -150,6 +153,7 @@ function RpbComm() {
                     self.nodes.actions.on("child_added", self.ondb_actions_childAdded.bind(self));
                     self.nodes.bets.on("value", self.ondb_bets_value.bind(self));
                     self.nodes.hostPing.on("value", self.ondb_hostPing_value.bind(self));
+                    self.nodes.userPing.on("child_added", self.ondb_userPing_childAdded.bind(self));
                 }).catch(function (error) {
                     alert(JSON.stringify(error));
                 });
@@ -272,10 +276,34 @@ function RpbComm() {
             // }
         };
 
+        /** Sends a ping to the server and checks that clients are responding */
         this.doHostPing = function () {
             this.nodes.hostPing.set(firebase.database.ServerValue.TIMESTAMP);
             this.nodes.hostPing.once("value").then(function (snap) { console.log(snap.val()); });
+            this.checkUserPing();
+        };
 
+        this.checkUserPing = function () {
+            var self = this;
+            forEachIn(this.cached.players, function (key, value) {
+                if (key != self.myUserKey) { // don't kick self
+
+                    var usersPing = self.userPings[key] || 0;
+                    usersPing++;
+
+                    if (usersPing == 3) {
+                        self.dispatchAction("userTimeout", { user: key, name: value.name });
+                    } else {
+                        self.userPings[key] = usersPing;
+                    }
+                }
+            });
+        };
+
+        this.doUserPing = function () {
+            if (!this.isHosting) {
+                this.nodes.userPing.push({ user: this.myUserKey });
+            }
         };
 
         /** Sends a message to the host to request a game action to occur */
@@ -409,6 +437,14 @@ function RpbComm() {
             var time = snapshot.val();
             if (time) {
                 this.hostPonged(time);
+                this.doUserPing();
+            }
+        };
+
+        this.ondb_userPing_childAdded = function (snapshot) {
+            var user = (snapshot.val() || {}).user;
+            if (user) {
+                this.userPings[user] = 0;
             }
         };
     }
@@ -720,25 +756,25 @@ RpbGameLogic.prototype.host_activePlayerStand = function () {
  * Otherwise a 'playerUp' message is dispatched for the new player. */
 RpbGameLogic.prototype.host_moveToNextPlayer = function (message) {
     var user = this.playerQueue[0];
-    var info = this.playerInfo[user];
-    if (info) {
-        if (message) this.comm.dispatchAction(message, { user: user });
-        this.playerQueue.shift();
+    // var info = this.playerInfo[user];
+    // if (info) {
+    if (message) this.comm.dispatchAction(message, { user: user });
+    this.playerQueue.shift();
 
-        if (this.playerQueue.length > 0) {
-            // skip over any player with blackjack
-            var nextPlayer = this.playerQueue[0];
-            var nextPlayerHandValue = CardDeck.getHandTotal(this.playerInfo[nextPlayer].hand);
-            if (nextPlayerHandValue == 21) {
-                this.host_moveToNextPlayer(message);
-            } else {
-                // next player is up
-                this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
-            }
+    if (this.playerQueue.length > 0) {
+        // skip over any player with blackjack
+        var nextPlayer = this.playerQueue[0];
+        var nextPlayerHandValue = CardDeck.getHandTotal(this.playerInfo[nextPlayer].hand);
+        if (nextPlayerHandValue == 21) {
+            this.host_moveToNextPlayer(message);
         } else {
-            this.host_performDealerTurn();
+            // next player is up
+            this.comm.dispatchAction(RpbGameLogic.messages.playerUp, { user: this.playerQueue[0] });
         }
+    } else {
+        this.host_performDealerTurn();
     }
+    // }
 };
 RpbGameLogic.prototype.host_performDealerTurn = function () {
     var self = this;
@@ -881,6 +917,33 @@ RpbGameLogic.prototype.actionHandlers = {
     placeBet: function (args) {
 
     },
+    userTimeout: function (args) {
+        if (this.comm.isHosting) { // if we're the host, we're to kick the player
+            var user = args.user;
+            var isCurrentPlayer = this.playerQueue[0] == user;
+
+            // remove player from db's list of active players
+            var playerList = this.comm.cached.players;
+            playerList[user] = null;
+            this.comm.nodes.players.set(playerList);
+
+            // // remove player from current hand
+            // delete this.playerInfo[user];
+
+            // if(isCurrentPlayer) {
+            //     // Move past the pinged-out user
+            //     this.host_moveToNextPlayer();
+            // } else {
+            //     // Remove the player from the queue if he hasn't gone yet
+            //     var index = this.playerQueue.indexOf(user);
+            //     if(index >= 0) {
+            //         this.playerQueue.splice(index, 1);
+            //     }
+            // }
+            this.comm.startRound("startGame");
+
+        }
+    }
 };
 
 /** Represents a deck of cards
@@ -1370,9 +1433,16 @@ $(document).ready(function () {
                 this.allCardsFaceUp();
             },
             hostTimeout: function (args) {
+                if (this.comm.isHosting) {
+                    firebase.goOffline(); // don't automatically reconnect to server and start mucking the game up
+                }
                 this.comm.isHosting = false;
                 this.ui.status.text("ERROR - Host has timed out!");
                 this.AddGameMessage("ERROR - Host has times out!");
+            },
+            userTimeout: function (args) {
+                this.AddGameMessage("ERROR - " + args.name + " has timed out!");
+                $("#" + args.user).find(".player-box-header").css({ color: "red" });
             }
         },
 
