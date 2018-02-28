@@ -1,7 +1,7 @@
 # Rock Paper Blackjack
 ----
 ### But, what is it?
-It's a new twist on Rock, Paper, Scissors! Instead of selecting between "rock", "paper", or "scissors", you're dealt some cards that you can play blackjack with instead! 
+It's a new twist on Rock, Paper, Scissors! Instead of selecting between "rock", "paper", or "scissors", you're dealt some cards and you play Blackjack! 
 
 About the current state of the project: There simply wasn't enough time to thoroughly debug the software. It *seems* to work! However, if it all goes to hell, the database can be wiped by opening ***nuke.html***.
 
