@@ -1,7 +1,7 @@
 # Rock Paper Blackjack
 ----
 ### But, what is it?
-It's a new twist on Rock, Paper, Scissors! Instead of selecting between "rock", "paper", or "scissors", you're dealt some cards and you play Blackjack! 
+It's a new twist on Rock, Paper, Scissors! Instead of selecting between "rock", "paper", or "scissors", you're dealt some cards and you play Blackjack! [Check it out](https://snarfblam.github.io/RPB-Multiplayer/).
 
 About the current state of the project: There simply wasn't enough time to thoroughly debug the software. It *seems* to work! However, if it all goes to hell, the database can be wiped by opening ***nuke.html***.
 
@@ -13,10 +13,10 @@ Essentially, firebase is used to implement a "communication protocol". The first
 - index.html - Main interface. Used for both host and client.
 - nuke.html - Nuclear option. Clears the database. Use this if things enter an unrecoverable state.
 - README.md - You're looking at it.
-- dbStructure.txt - Outlines the database structure as well as the messages sent between clients
-- /**assets** - Where I keep the good stuff
-   - /**css** - css files
-     - reset.css - Because not all things are created equal. Nomralizes styles between browsers.
+- dbStructure.txt - Outlines the database structure as well as the messages sent between clients.
+- /**assets** - Where I keep the good stuff.
+   - /**css** - CSS files.
+     - reset.css - Because not all things are created equal. Normalizes styles between browsers.
      - main.css - CSS definitions for index.html/nuke.html
    - /**images** - UI images
    - /**js** - Javascript files
