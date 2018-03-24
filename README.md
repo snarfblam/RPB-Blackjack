@@ -3,7 +3,7 @@
 ### But, what is it?
 It's a new twist on Rock, Paper, Scissors! Instead of selecting between "rock", "paper", or "scissors", you're dealt some cards and you play Blackjack! [Check it out](https://snarfblam.github.io/RPB-Multiplayer/).
 
-About the current state of the project: There simply wasn't enough time to thoroughly debug the software. It *seems* to work! However, if it all goes to hell, the database can be wiped by opening ***nuke.html***.
+About the current state of the project: There simply wasn't enough time to thoroughly debug the software. Everything seems to work, but be warned that when you start the game, __you'll need to wait for previous game to time out__. However, if it all goes to hell, the database can be wiped by opening ***nuke.html***.
 
 Essentially, firebase is used to implement a "communication protocol". The first player to join becomes the host and he runs the host logic as well as the usual client logic. Clients interact by sending messages to the host ('requests') and receiving messages back from the host ('actions'). Should the host disappear, the first client that decides the host timed out takes the throne. Should a player disappear, the host decides when he times out, at which point the current round is scrapped.
 
