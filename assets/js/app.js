@@ -31,15 +31,15 @@ function forEachIn(obj, callback, _this) {
 }
 
 
-/** Managese communication with firebase
+/** Manages communication with firebase
  *  @constructor */
 function RpbComm() {
     { // Set all methods/properties
         this.isHosting = false;
         this.myUserKey = null;
         this.hostPingCount = 0; // Number of 'ping checks' since 
-        this.hostPingRate = 10000; // 10 secs - Interval of ping checker
-        this.hostPingLimit = 3; // 30 secs- length of time that will pass before we assume host has vanished
+        this.hostPingRate = 5000; // 5 secs - Interval of ping checker
+        this.hostPingLimit = 2; // 10 secs- length of time that will pass before we assume host has vanished
 
         this.myName = this.generateRandomName(); //"stefan";
 
@@ -246,7 +246,7 @@ function RpbComm() {
                     var usersPing = self.userPings[key] || 0;
                     usersPing++;
 
-                    if (usersPing == 3) {
+                    if (usersPing == 2) {
                         self.dispatchAction("userTimeout", { user: key, name: value.name });
                     } else {
                         self.userPings[key] = usersPing;
