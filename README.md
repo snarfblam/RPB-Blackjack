@@ -2,7 +2,7 @@
 ![Rock Paper Blackjack](rpb.png)
 ----
 ### What is it?
-Who doesn't like Blackjack? Make bets. Win. Lose. Don't worry, there's no real money involved! [Check it out](https://snarfblam.github.io/RPB-Multiplayer/).
+Who doesn't like Blackjack? Make bets. Win. Lose. Don't worry, there's no real money involved! [Check it out](https://snarfblam.github.io/RPB-Blackjack/).
 
 ### How does it work?
 
